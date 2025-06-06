@@ -1,0 +1,182 @@
+import { create } from "zustand"
+import type { AllowanceRequest, Rate, Rule } from "./types"
+
+interface DataState {
+  requests: AllowanceRequest[]
+  rates: Rate[]
+  rules: Rule[]
+  loading: boolean
+  error: string | null
+  fetchRequests: (token: string, userId?: string, status?: string) => Promise<void>
+  fetchRates: (token: string) => Promise<void>
+  addRequest: (request: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => Promise<boolean>
+  updateRequest: (id: string, updates: Partial<AllowanceRequest>, token: string) => Promise<boolean>
+  clearData: () => void
+  onAuthError?: () => void
+  setAuthErrorCallback: (callback: () => void) => void
+}
+
+export const useDataStore = create<DataState>((set, get) => ({
+  requests: [],
+  rates: [],
+  rules: [],
+  loading: false,
+  error: null,
+  onAuthError: undefined,
+
+  fetchRequests: async (token: string, userId?: string, status?: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return
+      }
+
+      set({ loading: true, error: null })
+
+      let url = "/api/requests"
+      const params = new URLSearchParams()
+
+      if (userId) params.append("userId", userId)
+      if (status) params.append("status", status)
+
+      if (params.toString()) {
+        url += `?${params.toString()}`
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.status === 401) {
+        get().onAuthError?.()
+        set({ error: "Session expired. Please login again.", loading: false })
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch requests: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      set({ requests: data.requests, loading: false })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to fetch requests", loading: false })
+    }
+  },
+
+  fetchRates: async (token: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return
+      }
+
+      set({ loading: true, error: null })
+
+      const response = await fetch("/api/rates", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.status === 401) {
+        get().onAuthError?.()
+        set({ error: "Session expired. Please login again.", loading: false })
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch rates: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      set({ rates: data.rates, loading: false })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to fetch rates", loading: false })
+    }
+  },
+
+  addRequest: async (requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return false
+      }
+
+      set({ loading: true, error: null })
+
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestData),
+      })
+
+      if (response.status === 401) {
+        set({ error: "Session expired. Please login again.", loading: false })
+        return false
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to create request")
+      }
+
+      const data = await response.json();
+      set({ loading: false })
+      if (data && data.success && data.requestId) {
+        return data.requestId;
+      }
+      return false
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to create request", loading: false })
+      return false
+    }
+  },
+
+  updateRequest: async (id: string, updates: Partial<AllowanceRequest>, token: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return false
+      }
+
+      set({ loading: true, error: null })
+
+      const response = await fetch(`/api/requests/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (response.status === 401) {
+        set({ error: "Session expired. Please login again.", loading: false })
+        return false
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to update request")
+      }
+
+      set({ loading: false })
+      return true
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to update request", loading: false })
+      return false
+    }
+  },
+
+  setAuthErrorCallback: (callback: () => void) => {
+    set({ onAuthError: callback })
+  },
+
+  clearData: () => {
+    set({ requests: [], rates: [], rules: [], loading: false, error: null, onAuthError: undefined })
+  },
+}))
