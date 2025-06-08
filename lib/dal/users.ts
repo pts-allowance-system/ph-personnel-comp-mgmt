@@ -5,16 +5,16 @@ import type { User } from "../types"
 export class UsersDAL {
   static async findByNationalId(nationalId: string): Promise<User | null> {
     const sql = `
-      SELECT id, national_id, name, email, role, department, position, is_active, created_at, updated_at
-      FROM users 
-      WHERE national_id = ? AND is_active = true
+      SELECT id, national_id, name, email, role, department, position, isActive, created_at, updated_at
+      FROM usersisActive
+      WHERE national_id = ? AND isActive = true
     `
     return await Database.queryOne<User>(sql, [nationalId])
   }
 
   static async findById(id: string): Promise<User | null> {
     const sql = `
-      SELECT id, national_id, name, email, role, department, position, is_active, created_at, updated_at
+      SELECT id, national_id, name, email, role, department, position, isActive, created_at, updated_at
       FROM users 
       WHERE id = ?
     `
@@ -23,7 +23,7 @@ export class UsersDAL {
 
   static async findAll(filters: { role?: string; isActive?: boolean } = {}): Promise<User[]> {
     let sql = `
-      SELECT id, national_id, name, email, role, department, position, is_active, created_at, updated_at
+      SELECT id, national_id, name, email, role, department, position, isActive, created_at, updated_at
       FROM users 
       WHERE 1=1
     `
@@ -35,7 +35,7 @@ export class UsersDAL {
     }
 
     if (filters.isActive !== undefined) {
-      sql += " AND is_active = ?"
+      sql += " AND isActive = ?"
       params.push(filters.isActive)
     }
 
@@ -46,9 +46,9 @@ export class UsersDAL {
 
   static async authenticate(nationalId: string, password: string): Promise<User | null> {
     const sql = `
-      SELECT id, national_id, name, email, role, department, position, is_active, password_hash
+      SELECT id, national_id, name, email, role, department, position, isActive, password_hash
       FROM users 
-      WHERE national_id = ? AND is_active = true
+      WHERE national_id = ? AND isActive = true
     `
     const user = await Database.queryOne<User & { password_hash: string }>(sql, [nationalId])
 
@@ -78,7 +78,7 @@ export class UsersDAL {
       role: userData.role,
       department: userData.department,
       position: userData.position,
-      is_active: userData.isActive ?? true,
+      isActive: userData.isActive ?? true,
     }
 
     await Database.insert("users", data)
@@ -93,12 +93,12 @@ export class UsersDAL {
     if (updates.role) data.role = updates.role
     if (updates.department) data.department = updates.department
     if (updates.position) data.position = updates.position
-    if (updates.isActive !== undefined) data.is_active = updates.isActive
+    if (updates.isActive !== undefined) data.isActive = updates.isActive
 
     return await Database.update("users", data, { id })
   }
 
   static async delete(id: string): Promise<boolean> {
-    return await Database.update("users", { is_active: false }, { id })
+    return await Database.update("users", { isActive: false }, { id })
   }
 }

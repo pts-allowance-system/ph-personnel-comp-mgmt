@@ -7,13 +7,13 @@ interface DataState {
   rules: Rule[]
   loading: boolean
   error: string | null
+  authErrorCallback: (() => void) | null // Added for auth error handling
+  setAuthErrorCallback: (callback: (() => void) | null) => void // Added to set the callback
   fetchRequests: (token: string, userId?: string, status?: string) => Promise<void>
   fetchRates: (token: string) => Promise<void>
   addRequest: (request: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => Promise<boolean>
   updateRequest: (id: string, updates: Partial<AllowanceRequest>, token: string) => Promise<boolean>
   clearData: () => void
-  onAuthError?: () => void
-  setAuthErrorCallback: (callback: () => void) => void
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -22,7 +22,9 @@ export const useDataStore = create<DataState>((set, get) => ({
   rules: [],
   loading: false,
   error: null,
-  onAuthError: undefined,
+  authErrorCallback: null, // Initialize authErrorCallback
+
+  setAuthErrorCallback: (callback) => set({ authErrorCallback: callback }), // Implement setAuthErrorCallback
 
   fetchRequests: async (token: string, userId?: string, status?: string) => {
     try {
@@ -50,8 +52,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       })
 
       if (response.status === 401) {
-        get().onAuthError?.()
         set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.() // Call the auth error callback
         return
       }
 
@@ -82,8 +84,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       })
 
       if (response.status === 401) {
-        get().onAuthError?.()
         set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.() // Call the auth error callback
         return
       }
 
@@ -118,6 +120,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       if (response.status === 401) {
         set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.() // Call the auth error callback
         return false
       }
 
@@ -125,12 +128,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         throw new Error("Failed to create request")
       }
 
-      const data = await response.json();
       set({ loading: false })
-      if (data && data.success && data.requestId) {
-        return data.requestId;
-      }
-      return false
+      return true
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to create request", loading: false })
       return false
@@ -157,6 +156,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       if (response.status === 401) {
         set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.() // Call the auth error callback
         return false
       }
 
@@ -172,11 +172,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  setAuthErrorCallback: (callback: () => void) => {
-    set({ onAuthError: callback })
-  },
-
   clearData: () => {
-    set({ requests: [], rates: [], rules: [], loading: false, error: null, onAuthError: undefined })
+    set({ requests: [], rates: [], rules: [], loading: false, error: null })
   },
 }))

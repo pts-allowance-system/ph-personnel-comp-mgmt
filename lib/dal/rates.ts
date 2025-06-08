@@ -4,9 +4,9 @@ import type { Rate } from "../types"
 export class RatesDAL {
   static async findAll(): Promise<Rate[]> {
     const sql = `
-      SELECT id, group_name, tier, base_rate, effective_date, is_active, created_at, updated_at
+      SELECT id, group_name, tier, base_rate, effective_date, isActive, created_at, updated_at
       FROM allowance_rates
-      WHERE is_active = true
+      WHERE isActive = true
       ORDER BY group_name, tier, effective_date DESC
     `
 
@@ -18,15 +18,15 @@ export class RatesDAL {
       tier: rate.tier,
       baseRate: Number.parseFloat(rate.base_rate),
       effectiveDate: rate.effective_date,
-      isActive: rate.is_active,
+      isActive: rate.isActive,
     }))
   }
 
   static async findByGroupAndTier(group: string, tier: string): Promise<Rate | null> {
     const sql = `
-      SELECT id, group_name, tier, base_rate, effective_date, is_active
+      SELECT id, group_name, tier, base_rate, effective_date, isActive
       FROM allowance_rates
-      WHERE group_name = ? AND tier = ? AND is_active = true
+      WHERE group_name = ? AND tier = ? AND isActive = true
       ORDER BY effective_date DESC
       LIMIT 1
     `
@@ -41,7 +41,7 @@ export class RatesDAL {
       tier: rate.tier,
       baseRate: Number.parseFloat(rate.base_rate),
       effectiveDate: rate.effective_date,
-      isActive: rate.is_active,
+      isActive: rate.isActive,
     }
   }
 
@@ -54,7 +54,7 @@ export class RatesDAL {
       tier: rateData.tier,
       base_rate: rateData.baseRate,
       effective_date: rateData.effectiveDate,
-      is_active: rateData.isActive ?? true,
+      isActive: rateData.isActive ?? true,
     }
 
     await Database.insert("allowance_rates", data)
@@ -68,7 +68,7 @@ export class RatesDAL {
     if (updates.tier) data.tier = updates.tier
     if (updates.baseRate) data.base_rate = updates.baseRate
     if (updates.effectiveDate) data.effective_date = updates.effectiveDate
-    if (updates.isActive !== undefined) data.is_active = updates.isActive
+    if (updates.isActive !== undefined) data.isActive = updates.isActive
 
     return await Database.update("allowance_rates", data, { id })
   }

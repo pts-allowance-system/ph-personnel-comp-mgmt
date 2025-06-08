@@ -32,7 +32,7 @@ export async function verifyToken(request: NextRequest): Promise<TokenPayload | 
 
     // Optionally verify user still exists and is active
     const user = await UsersDAL.findById(decoded.userId);
-    if (!user || !user.is_active) {
+    if (!user || !user.isActive) {
       return null;
     }
 
