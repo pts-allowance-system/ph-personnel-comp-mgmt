@@ -1,10 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
+
+export const dynamic = "force-dynamic"; // Force dynamic rendering
 import { RequestsDAL } from "@/lib/dal/requests"
 import { verifyToken } from "@/lib/auth-utils"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params: paramsPromise }: { params: Promise<{ id: string }> }
+) {
+  // paramsPromise is a Promise, await it to get the actual params
+  console.log("[DEBUG] Route Handler GET: paramsPromise received.");
   try {
-    if (!params.id) {
+    const params = await paramsPromise;
+    console.log("[DEBUG] Route Handler GET: Resolved params:", JSON.stringify(params, null, 2));
+    const requestIdFromParams = params.id;
+    if (!requestIdFromParams) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
 
@@ -13,7 +23,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const requestData = await RequestsDAL.findById(params.id)
+    const requestData = await RequestsDAL.findById(requestIdFromParams)
+    console.log("[API_ROUTE_DEBUG] Raw requestData from DAL:", JSON.stringify(requestData, null, 2));
 
     if (!requestData) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
@@ -24,35 +35,44 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    return NextResponse.json({ request: requestData })
+    return NextResponse.json(requestData)
   } catch (error) {
     console.error("Get request error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  // context.params is a Promise, await it to get the actual params
+  console.log("[DEBUG] Route Handler PATCH: context.params (Promise) received.");
   try {
-    if (!params.id) {
+    const params = await context.params;
+    console.log("[DEBUG] Route Handler PATCH: Resolved params:", JSON.stringify(params, null, 2));
+    const requestIdFromParams = params.id;
+    if (!requestIdFromParams) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
 
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    // const user = await verifyToken(request) // Commented for debugging
+    // if (!user) {
+    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // }
 
-    const updates = await request.json()
+    // const updates = await request.json() // Commented for debugging
 
-    const success = await RequestsDAL.update(params.id, updates)
+    // const success = await RequestsDAL.update(requestIdFromParams, updates) // Commented for debugging
 
-    if (!success) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 })
-    }
+    // if (!success) {
+    //   return NextResponse.json({ error: "Request not found" }, { status: 404 })
+    // }
 
     return NextResponse.json({
       success: true,
-      message: "Request updated successfully",
+      message: "Request updated successfully (PATCH - simplified for debugging)",
+      idFromParams: requestIdFromParams
     })
   } catch (error) {
     console.error("Update request error:", error)

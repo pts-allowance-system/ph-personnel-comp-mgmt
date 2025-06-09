@@ -8,7 +8,8 @@ import { StatusBadge } from "@/components/status-badge"
 import { DocumentViewer } from "@/components/document-viewer"
 import { Separator } from "@/components/ui/separator"
 import { DollarSign, FileText, User } from "lucide-react"
-import { format } from "date-fns"
+import { formatDateToBangkokTime } from "@/lib/date-utils";
+import { formatToThb } from "@/lib/currency-utils";
 
 export default function RequestDetailsPage() {
   const params = useParams()
@@ -18,11 +19,19 @@ export default function RequestDetailsPage() {
   const request = requests.find((r) => r.id === params.id) || fetchedRequest
 
   React.useEffect(() => {
+    // If params.id is "true", it's likely a filter, not an ID.
+    // Prevent the fetch for "true" to avoid the 404 from the API.
+    if (params.id === "true") {
+      setFetchedRequest(null); // Ensure it shows "Request not found"
+      setLoading(false);
+      return;
+    }
+
     if (!request && params.id) {
       setLoading(true)
       fetch(`/api/requests/${params.id}`)
         .then(res => res.ok ? res.json() : Promise.reject(res))
-        .then(data => setFetchedRequest(data.request))
+        .then(data => setFetchedRequest(data))
         .catch(() => setFetchedRequest(null))
         .finally(() => setLoading(false))
     }
@@ -80,8 +89,8 @@ export default function RequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Period</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.startDate), "MMM dd, yyyy")} -{" "}
-                  {format(new Date(request.endDate), "MMM dd, yyyy")}
+                  {formatDateToBangkokTime(request.startDate, { year: 'numeric' })} -{" "}
+                  {formatDateToBangkokTime(request.endDate, { year: 'numeric' })}
                 </p>
               </div>
             </div>
@@ -95,13 +104,13 @@ export default function RequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Created</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.createdAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {formatDateToBangkokTime(request.createdAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Last Updated</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.updatedAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {formatDateToBangkokTime(request.updatedAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
@@ -121,7 +130,7 @@ export default function RequestDetailsPage() {
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Base Rate</span>
-              <span className="text-sm font-medium">฿{request.baseRate.toLocaleString()}</span>
+              <span className="text-sm font-medium">{formatToThb(request.baseRate)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Number of Days</span>
@@ -134,11 +143,10 @@ export default function RequestDetailsPage() {
             <Separator />
             <div className="flex justify-between">
               <span className="text-base font-medium text-gray-900">Total Amount</span>
-              <span className="text-base font-bold text-green-600">฿{request.totalAmount.toLocaleString()}</span>
+              <span className="text-base font-bold text-green-600">{formatToThb(request.totalAmount)}</span>
             </div>
             <div className="text-xs text-gray-500 mt-2">
-              Calculation: ฿{request.baseRate.toLocaleString()} × {calculateDays()} days × {request.zoneMultiplier} = ฿
-              {request.totalAmount.toLocaleString()}
+              Calculation: {formatToThb(request.baseRate)} × {calculateDays()} days × {request.zoneMultiplier} = {formatToThb(request.totalAmount)}
             </div>
           </div>
         </CardContent>
@@ -167,12 +175,13 @@ export default function RequestDetailsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {request.comments.map((comment) => (
+              {/* Define a basic type for comment based on usage */}
+              {request.comments.map((comment: { id: string; userName: string; createdAt: string | Date; message: string }) => (
                 <div key={comment.id} className="border-l-4 border-blue-200 pl-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">{comment.userName}</span>
                     <span className="text-xs text-gray-500">
-                      {format(new Date(comment.createdAt), "MMM dd, yyyy 'at' HH:mm")}
+                      {formatDateToBangkokTime(comment.createdAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-sm text-gray-700">{comment.message}</p>

@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileUploadComponent } from "@/components/file-upload"
-import type { FileUpload } from "@/lib/types"
+import type { FileUpload, AllowanceRequest } from "@/lib/types"
+import { formatToThb } from "@/lib/currency-utils"
 
 export default function NewRequestPage() {
   const { user, token } = useAuthStore()
@@ -70,6 +71,8 @@ export default function NewRequestPage() {
       const zoneMultiplier = 1.2 // This could be configurable based on location
       const totalAmount = rate.baseRate * days * zoneMultiplier
 
+      const currentStatus: AllowanceRequest['status'] = isDraft ? "draft" : "submitted";
+
       const requestData = {
         employeeId: user.id,
         employeeName: user.name,
@@ -77,7 +80,7 @@ export default function NewRequestPage() {
         tier: formData.tier,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        status: isDraft ? "draft" : "submitted",
+        status: currentStatus,
         baseRate: rate.baseRate,
         zoneMultiplier,
         totalAmount,
@@ -85,10 +88,10 @@ export default function NewRequestPage() {
         comments: [],
       }
 
-      const requestId = await addRequest(requestData, token!)
+      const createdRequestObject = await addRequest(requestData, token!)
 
-      if (requestId) {
-        router.push(`/requests/${requestId}`)
+      if (createdRequestObject) {
+        router.push(`/requests/${createdRequestObject.id}`)
       } else {
         throw new Error("Failed to create request")
       }
@@ -165,8 +168,8 @@ export default function NewRequestPage() {
             {formData.group && formData.tier && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-800">
-                  <strong>Base Rate:</strong> ฿
-                  {rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate.toLocaleString()}{" "}
+                  <strong>Base Rate:</strong> 
+                  {formatToThb(rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate)}{" "}
                   per day
                 </p>
               </div>

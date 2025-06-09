@@ -77,10 +77,17 @@ export async function POST(request: NextRequest) {
     }
 
     const requestId = await RequestsDAL.create(newRequest)
+    const createdRequest = await RequestsDAL.findById(requestId) // Fetch the full request
+
+    if (!createdRequest) {
+      // This case should ideally not happen if create was successful
+      console.error(`Failed to fetch newly created request with id: ${requestId}`);
+      return NextResponse.json({ error: "Failed to retrieve created request" }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
-      requestId,
+      request: createdRequest, // Return the full request object
       message: "Request created successfully",
     })
   } catch (error) {

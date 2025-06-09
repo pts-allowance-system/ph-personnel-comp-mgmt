@@ -10,7 +10,11 @@ import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Eye, Edit } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
+import { formatDateToBangkokTime } from "@/lib/date-utils"
+import { formatToThb } from "@/lib/currency-utils"
+
+
+
 
 export default function RequestsPage() {
   const { user, token } = useAuthStore()
@@ -81,17 +85,17 @@ export default function RequestsPage() {
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
-                      {format(new Date(request.startDate), "MMM dd")} -{" "}
-                      {format(new Date(request.endDate), "MMM dd, yyyy")}
+                      {formatDateToBangkokTime(request.startDate)} -{" "}
+                      {formatDateToBangkokTime(request.endDate, { year: 'numeric' })}
                     </TableCell>
                     <TableCell>
                       {request.group} / {request.tier}
                     </TableCell>
-                    <TableCell>฿{request.totalAmount.toLocaleString()}</TableCell>
+                    <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{format(new Date(request.createdAt), "MMM dd, yyyy")}</TableCell>
+                    <TableCell>{formatDateToBangkokTime(request.createdAt, { year: 'numeric' })}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm" asChild>
