@@ -11,7 +11,7 @@ interface DataState {
   setAuthErrorCallback: (callback: (() => void) | null) => void // Added to set the callback
   fetchRequests: (token: string, userId?: string, status?: string) => Promise<void>
   fetchRates: (token: string) => Promise<void>
-  addRequest: (request: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => Promise<boolean>
+  addRequest: (request: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => Promise<AllowanceRequest | null>
   updateRequest: (id: string, updates: Partial<AllowanceRequest>, token: string) => Promise<boolean>
   clearData: () => void
 }
@@ -100,11 +100,11 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  addRequest: async (requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => {
+  addRequest: async (requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string): Promise<AllowanceRequest | null> => {
     try {
       if (!token) {
         set({ error: "Authentication token is required", loading: false })
-        return false
+        return null
       }
 
       set({ loading: true, error: null })
@@ -121,18 +121,26 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (response.status === 401) {
         set({ error: "Session expired. Please login again.", loading: false })
         get().authErrorCallback?.() // Call the auth error callback
-        return false
+        return null
       }
 
       if (!response.ok) {
-        throw new Error("Failed to create request")
+        const errorData = await response.json().catch(() => ({ error: "Failed to create request" }));
+        throw new Error(errorData.error || "Failed to create request");
       }
 
-      set({ loading: false })
-      return true
+      const data = await response.json();
+      const newRequest = data.request as AllowanceRequest;
+
+      set(state => ({
+        requests: [newRequest, ...state.requests],
+        loading: false,
+        error: null
+      }));
+      return newRequest;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to create request", loading: false })
-      return false
+      return null
     }
   },
 

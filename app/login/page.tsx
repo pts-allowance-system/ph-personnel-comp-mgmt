@@ -1,46 +1,79 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/auth-store" // Ensure this path is correct
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-const roleLandingPages = {
+// Define the type for roles that have landing pages
+type UserRole = "employee" | "supervisor" | "hr" | "finance" | "admin";
+
+// Use a type assertion to ensure roleLandingPages keys match UserRole
+const roleLandingPages: Record<UserRole, string> = {
   employee: "/requests",
   supervisor: "/supervisor/requests",
   hr: "/hr/dashboard",
   finance: "/finance/dashboard",
   admin: "/admin/users",
-}
+};
 
 export default function LoginPage() {
   const [nationalId, setNationalId] = useState("")
   const [password, setPassword] = useState("")
-  const { login, loading, error, clearError } = useAuthStore()
+  // Destructure 'user' directly if your useAuthStore updates it upon login
+  const { login, loading, error, clearError, user } = useAuthStore() // Assuming 'user' is part of the store's state
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
 
-    // Validate national ID (13 digits)
+    // Client-side validation: National ID must be exactly 13 digits
     if (!/^\d{13}$/.test(nationalId)) {
-      return
+      // You might want to set a local error state here for this specific validation
+      // if you want different messages for different client-side failures
+      console.error("National ID must be exactly 13 digits.");
+      return;
+    }
+
+    // You could add client-side password validation here too if needed
+    if (!password) {
+      console.error("Password cannot be empty.");
+      // Potentially set an error state or display inline message
+      return;
     }
 
     const success = await login(nationalId, password)
+
     if (success) {
-      const user = useAuthStore.getState().user
-      if (user) {
-        router.push(roleLandingPages[user.role])
+      // It's generally safer to get the user from the store *after* the async login call
+      // if the 'user' state isn't guaranteed to update synchronously with 'login' resolving.
+      // However, if your login function in useAuthStore *does* update the 'user' state
+      // directly on success, then the 'user' destructured above will be the correct one.
+      // For maximum safety, you might still want to get it again, or ensure the store updates reactively.
+      // Let's stick with the destructured 'user' assuming it's reactive after 'login'.
+
+      if (user && (user.role in roleLandingPages)) {
+        // Type assertion for accessing roleLandingPages safely
+        const destination = roleLandingPages[user.role as UserRole];
+        router.push(destination);
+      } else if (user) {
+        // Handle case where user exists but role is not recognized in roleLandingPages
+        console.warn(`User with unrecognized role '${user.role}' logged in. Redirecting to default.`);
+        router.push("/"); // Fallback to home page or a generic dashboard
+      } else {
+        // This case should ideally not happen if login was successful but user is null
+        console.error("Login succeeded but user data is missing.");
+        router.push("/"); // Fallback to home page or a generic dashboard
       }
     }
+    // No 'else' block needed here for `if (success)`, as the 'error' state from useAuthStore
+    // will be automatically displayed if `login` returns false and sets an error.
   }
 
   return (
@@ -61,13 +94,17 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Enter 13-digit National ID"
                 value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
-                maxLength={13}
+                onChange={(e) => {
+                  // Allow only digits and limit to 13 characters
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 13);
+                  setNationalId(value);
+                }}
+                maxLength={13} // HTML maxLength is also useful
                 required
                 disabled={loading}
               />
-              {nationalId && !/^\d{13}$/.test(nationalId) && (
-                <p className="text-sm text-red-600">National ID must be exactly 13 digits</p>
+              {nationalId.length > 0 && nationalId.length !== 13 && (
+                <p className="text-sm text-red-600">National ID must be exactly 13 digits.</p>
               )}
             </div>
 
@@ -82,6 +119,10 @@ export default function LoginPage() {
                 required
                 disabled={loading}
               />
+              {/* Optional: Add client-side password validation feedback here */}
+              {/* {password.length > 0 && password.length < 6 && (
+                  <p className="text-sm text-red-600">Password must be at least 6 characters.</p>
+              )} */}
             </div>
 
             {error && (
@@ -90,7 +131,11 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || !/^\d{13}$/.test(nationalId) || !password}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || nationalId.length !== 13 || !password} // Ensure both are valid
+            >
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>

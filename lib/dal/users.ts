@@ -6,7 +6,7 @@ export class UsersDAL {
   static async findByNationalId(nationalId: string): Promise<User | null> {
     const sql = `
       SELECT id, national_id, name, email, role, department, position, isActive, created_at, updated_at
-      FROM usersisActive
+      FROM users
       WHERE national_id = ? AND isActive = true
     `
     return await Database.queryOne<User>(sql, [nationalId])
@@ -50,15 +50,32 @@ export class UsersDAL {
       FROM users 
       WHERE national_id = ? AND isActive = true
     `
-    const user = await Database.queryOne<User & { password_hash: string }>(sql, [nationalId])
+    const user = await Database.queryOne<User & { password_hash: string | null }>(sql, [nationalId])
 
-    if (!user) return null
+    if (!user) {
+      console.error(`[AuthDAL] Debug: User lookup for nationalId '${nationalId}' returned no user.`);
+      console.error(`[AuthDAL] Authentication failed: User with nationalId '${nationalId}' not found or is inactive.`);
+      return null;
+    }
+
+    console.log(`[AuthDAL] Debug: User found for nationalId '${nationalId}':`, JSON.stringify(user));
+    console.log(`[AuthDAL] Debug: Password received from client for nationalId '${nationalId}': '${password}'`);
+    console.log(`[AuthDAL] Debug: Stored password_hash for nationalId '${nationalId}': '${user.password_hash}'`);
+
+    // Add this check to ensure password_hash is a valid string
+    if (typeof user.password_hash !== 'string' || user.password_hash.length === 0) {
+      console.error(`[AuthDAL] Authentication failed: No valid password hash found for user with nationalId '${nationalId}'.`);
+      return null; // Treat as invalid credentials
+    }
 
     // For demo purposes, we'll accept "password123" for all users
     // In production, use: const isValid = await bcrypt.compare(password, user.password_hash)
-    const isValid = password === "password123"
+    const isValid = await bcrypt.compare(password, user.password_hash)
 
-    if (!isValid) return null
+    if (!isValid) {
+      console.error(`[AuthDAL] Authentication failed: Password mismatch for user with nationalId '${nationalId}'.`);
+      return null;
+    }
 
     // Remove password_hash from returned user
     const { password_hash, ...userWithoutPassword } = user
