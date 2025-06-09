@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pts_next_app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app # Mount current directory to /app in container for hot-reloading
+      - /app/node_modules # Don't mount host node_modules over container's
+      - /app/.next # Persist .next folder if needed across restarts (optional)
+    depends_on:
+      - db
+    environment:
+      # === IMPORTANT: Define your Next.js app's environment variables here ===
+      # These would typically come from your .env file.
+      # Database connection (ensure these match the 'db' service below)
+      DB_HOST: db
+      DB_USER: ${MYSQL_USER:-pts_user} # Uses MYSQL_USER from .env or defaults to pts_user
+      DB_PASSWORD: ${MYSQL_PASSWORD:-pts_password}
+      DB_NAME: ${MYSQL_DATABASE:-pts_db}
+      DB_PORT: 3306
+      DATABASE_URL: "mysql://${DB_USER:-pts_user}:${MYSQL_PASSWORD:-pts_password}@db:3306/${MYSQL_DATABASE:-pts_db}"
+
+      # NextAuth (if you use it - replace with your actual variables)
+      # NEXTAUTH_URL: http://localhost:3000
+      # NEXTAUTH_SECRET: "your_nextauth_secret_here" # CHANGE THIS!
+
+      # Supabase (if you use it - replace with your actual variables)
+      # NEXT_PUBLIC_SUPABASE_URL: "your_supabase_url"
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY: "your_supabase_anon_key"
+
+      # Add any other environment variables your Next.js app needs
+      # For example:
+      # SOME_API_KEY: "your_api_key"
+      # JWT_SECRET: "your_jwt_secret_here"
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0 # Or your preferred MySQL version
+    container_name: pts_mysql_db
+    ports:
+      - "${FORWARD_DB_PORT:-3307}:3306" # Forward to 3307 on host to avoid conflict if local MySQL runs on 3306
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-supersecretrootpassword} # CHANGE THIS!
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pts_db}
+      MYSQL_USER: ${MYSQL_USER:-pts_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pts_password}
+      TZ: 'Etc/UTC' # Set container timezone to UTC
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00 # Set MySQL server timezone to UTC
+    volumes:
+      - mysql_data:/var/lib/mysql # Persist database data
+      - ./scripts/database-schema.sql:/docker-entrypoint-initdb.d/10-schema.sql # Run schema first
+      - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/20-seed.sql     # Run seed data after schema
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
