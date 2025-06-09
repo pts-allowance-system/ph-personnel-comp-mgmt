@@ -1,0 +1,114 @@
+name: CI & Security Scan
+
+on:
+  push:
+    branches:
+      - main # Or your primary deployment branch
+      - 'dev' # Example: if you use a development branch
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main # Or your primary deployment branch
+      - 'dev'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-and-scan:
+    name: Build, Lint, Test & Scan
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x] # Specify your project's Node.js version
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Setup pnpm global store
+        uses: pnpm/action-setup@v3
+        with:
+          version: latest # Or specify your pnpm version
+          run_install: false # We will run install manually after caching
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint code
+        run: pnpm lint
+
+      # --- Security Scans (DevSecOps) ---
+      - name: Initialize CodeQL for Static Analysis (SAST)
+        uses: github/codeql-action/init@v3
+        with:
+          languages: typescript, javascript # Adjust if you have other languages
+          # config-file: ./.github/codeql/codeql-config.yml # Optional: for custom CodeQL queries
+
+      - name: Autobuild for CodeQL (attempts to build compiled languages, good practice)
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      # Example: Snyk for Dependency Vulnerability Scanning & SAST (optional)
+      # Requires SNYK_TOKEN secret in GitHub repository settings.
+      # - name: Run Snyk to check for vulnerabilities
+      #   continue-on-error: true # Set to false to fail workflow on vulnerabilities
+      #   uses: snyk/actions/node@master
+      #   env:
+      #     SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      #   with:
+      #     command: monitor # 'test' fails build, 'monitor' sends results to Snyk dashboard
+      #     args: --all-projects # Scans all projects found
+
+      # --- Build Application (CI Check) ---
+      # This step ensures your application builds correctly with dummy variables.
+      # Vercel will perform its own build using variables configured in Vercel settings.
+      - name: Build Next.js application for CI check
+        run: pnpm build
+        env:
+          # Provide dummy non-sensitive env vars if your build process strictly requires them.
+          DB_HOST: ci_dummy_host
+          DB_PORT: "3306"
+          DB_USER: ci_dummy_user # Corrected: Only one DB_USER
+          DB_PASSWORD: ci_dummy_password
+          DB_NAME: ci_dummy_db
+          DB_SSL: "false"
+          DATABASE_URL: "mysql://ci_dummy_user:ci_dummy_password@ci_dummy_host:3306/ci_dummy_db"
+          JWT_SECRET: "ci_dummy_jwt_secret_for_build_check_only"
+          NEXT_PUBLIC_SUPABASE_URL: "https://ci-dummy.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.ci_dummy_key_placeholder"
+          SUPABASE_SERVICE_ROLE_KEY: "ci_dummy_service_role_key_placeholder"
+          # Add any other env vars your Next.js build process might expect
+
+      # --- Future: Add Test Execution Step ---
+      # - name: Run tests
+      #   run: pnpm test
+      #   env:
+      #     # Configure test-specific environment variables if needed
+
+      # Note: Docker build and scan steps are commented out as Vercel handles the final deployment build.
+      # You can re-enable them if you want an explicit Docker image scan in CI for additional security checks.
