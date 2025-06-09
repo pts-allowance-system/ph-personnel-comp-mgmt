@@ -1,38 +1,41 @@
-# 1. Base image - Use a Node.js LTS version. Change if needed.
+# 1. Base Image
 FROM node:20.12.2-alpine AS base
-
-# Update OS packages to mitigate vulnerabilities
-USER root
-RUN apk update && apk upgrade && \
-    rm -rf /var/cache/apk/*
 
 # Set working directory
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm globally
+RUN npm install -g pnpm && \
+    apk update && apk upgrade && rm -rf /var/cache/apk/*
 
-# 2. Dependencies
+# 2. Dependency Installation
 FROM base AS deps
-# Copy package.json and pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml* ./
-# Install dependencies using pnpm
-RUN pnpm install --frozen-lockfile
 
-# 3. Build stage (for production, if you want a separate build image)
+COPY package.json pnpm-lock.yaml* ./
+
+# Avoid running postinstall scripts during dependency install
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# 3. Build App (production only)
 FROM base AS builder
+
+ENV NODE_ENV=production
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 RUN pnpm build
 
-# 4. Runner stage (for development or production)
+# 4. Runtime Image (lighter)
 FROM base AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=development
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Expose the port Next.js runs on
 EXPOSE 3000
 
-# Default command to run the app in development mode
-# For production, you might change this to 'pnpm start'
 CMD ["pnpm", "dev"]
