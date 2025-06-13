@@ -48,18 +48,42 @@ export async function POST(request: NextRequest) {
 
     const requestData = await request.json()
 
+    // Validate group and tier
+    if (!requestData.group || !requestData.tier) {
+      return NextResponse.json({ error: "Group and tier are required" }, { status: 400 })
+    }
+
     // Get rate for calculation
     const rate = await RatesDAL.findByGroupAndTier(requestData.group, requestData.tier)
-    if (!rate) {
-      return NextResponse.json({ error: "Rate not found" }, { status: 400 })
+    if (!rate || typeof rate.baseRate !== "number") {
+      return NextResponse.json({ error: "Rate not found or is invalid" }, { status: 400 })
+    }
+
+    // Validate dates
+    if (!requestData.startDate || !requestData.endDate) {
+      return NextResponse.json({ error: "Start date and end date are required" }, { status: 400 })
     }
 
     // Calculate total amount
     const startDate = new Date(requestData.startDate)
     const endDate = new Date(requestData.endDate)
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
+    }
+
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
     const zoneMultiplier = requestData.zoneMultiplier || 1.2
     const totalAmount = rate.baseRate * days * zoneMultiplier
+
+    if (isNaN(totalAmount)) {
+        console.error("Calculated totalAmount is NaN", {
+            baseRate: rate.baseRate,
+            days,
+            zoneMultiplier,
+        });
+        return NextResponse.json({ error: "Failed to calculate total amount due to invalid inputs" }, { status: 400 });
+    }
 
     const newRequest = {
       employeeId: user.userId,
@@ -74,6 +98,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       documents: requestData.documents || [],
       comments: [],
+      notes: requestData.notes || null,
     }
 
     const requestId = await RequestsDAL.create(newRequest)

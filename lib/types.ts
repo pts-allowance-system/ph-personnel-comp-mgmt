@@ -31,10 +31,11 @@ export interface AllowanceRequest {
   baseRate: number
   zoneMultiplier: number
   totalAmount: number
-  documents: FileUpload[] // Changed from string[] to FileUpload[]
+  documents: FileUpload[]
   comments: Comment[]
   createdAt: string
   updatedAt: string
+  notes?: string
 }
 
 export interface Comment {

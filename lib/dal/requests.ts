@@ -157,9 +157,10 @@ export class RequestsDAL {
     return requestsWithDetails
   }
 
-  static async create(requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt"> & { notes?: string }): Promise<string> {
+    static async create(requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
     const id = Database.generateId()
 
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
     const data = {
       id,
       employee_id: requestData.employeeId,
@@ -171,9 +172,9 @@ export class RequestsDAL {
       base_rate: requestData.baseRate,
       zone_multiplier: requestData.zoneMultiplier,
       total_amount: requestData.totalAmount,
-      notes: requestData.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      notes: requestData.notes || null,
+      created_at: now,
+      updated_at: now,
     }
 
     await Database.insert("allowance_requests", data)
