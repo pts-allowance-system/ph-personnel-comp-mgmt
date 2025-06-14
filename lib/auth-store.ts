@@ -15,7 +15,7 @@ interface AuthState {
   authErrorCallback: (() => void) | null; 
   setAuthErrorCallback: (callback: () => void) => void;
 
-  login: (nationalId: string, password: string) => Promise<boolean>
+  login: (nationalId: string, password: string) => Promise<User | null>
   logout: () => void
   setUser: (user: User, token: string) => void
   clearError: () => void
@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
         set({ authErrorCallback: callback });
       },
 
-      login: async (nationalId: string, password: string) => {
+      login: async (nationalId: string, password: string): Promise<User | null> => {
         try {
           set({ loading: true, error: null })
 
@@ -58,7 +58,7 @@ export const useAuthStore = create<AuthState>()(
               loading: false,
               error: null,
             })
-            return true
+            return data.user
           } else {
             // Server responded, but login was not successful (e.g., invalid credentials)
             set({
@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthState>()(
               token: null,
               isAuthenticated: false,
             })
-            return false
+            return null
           }
         } catch (error: any) { // Catch block for network errors or parsing issues
           console.error("Login network/parsing error:", error);
@@ -79,7 +79,7 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             isAuthenticated: false,
           })
-          return false
+          return null
         }
       },
 

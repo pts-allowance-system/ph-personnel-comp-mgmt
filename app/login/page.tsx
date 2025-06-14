@@ -26,7 +26,7 @@ export default function LoginPage() {
   const [nationalId, setNationalId] = useState("")
   const [password, setPassword] = useState("")
   // Destructure 'user' directly if your useAuthStore updates it upon login
-  const { login, loading, error, clearError, user } = useAuthStore() // Assuming 'user' is part of the store's state
+  const { login, loading, error, clearError } = useAuthStore()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,32 +48,23 @@ export default function LoginPage() {
       return;
     }
 
-    const success = await login(nationalId, password)
+    const user = await login(nationalId, password)
 
-    if (success) {
-      // It's generally safer to get the user from the store *after* the async login call
-      // if the 'user' state isn't guaranteed to update synchronously with 'login' resolving.
-      // However, if your login function in useAuthStore *does* update the 'user' state
-      // directly on success, then the 'user' destructured above will be the correct one.
-      // For maximum safety, you might still want to get it again, or ensure the store updates reactively.
-      // Let's stick with the destructured 'user' assuming it's reactive after 'login'.
-
-      if (user && (user.role in roleLandingPages)) {
-        // Type assertion for accessing roleLandingPages safely
-        const destination = roleLandingPages[user.role as UserRole];
+    if (user) {
+      // The user object is now available directly from the login function.
+      // We can use it for role-based redirection.
+      const role = user.role as UserRole; // Cast role to UserRole
+      if (role && role in roleLandingPages) {
+        const destination = roleLandingPages[role];
         router.push(destination);
-      } else if (user) {
-        // Handle case where user exists but role is not recognized in roleLandingPages
-        console.warn(`User with unrecognized role '${user.role}' logged in. Redirecting to default.`);
-        router.push("/"); // Fallback to home page or a generic dashboard
       } else {
-        // This case should ideally not happen if login was successful but user is null
-        console.error("Login succeeded but user data is missing.");
+        // Handle case where user exists but role is not recognized or missing
+        console.warn(`User with role '${user.role}' logged in. Redirecting to default.`);
         router.push("/"); // Fallback to home page or a generic dashboard
       }
     }
-    // No 'else' block needed here for `if (success)`, as the 'error' state from useAuthStore
-    // will be automatically displayed if `login` returns false and sets an error.
+    // No 'else' block needed here for `if (user)`, as the 'error' state from useAuthStore
+    // will be automatically displayed if `login` returns null and sets an error.
   }
 
   return (
