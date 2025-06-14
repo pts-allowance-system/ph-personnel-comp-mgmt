@@ -21,8 +21,9 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>("all")
 
   useEffect(() => {
-    console.log("Auth token:", token);
-    fetchUsers();
+    if (token) {
+      fetchUsers()
+    }
   }, [token])
 
   const fetchUsers = async () => {
