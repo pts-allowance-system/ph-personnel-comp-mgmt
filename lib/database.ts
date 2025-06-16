@@ -8,6 +8,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "pts_system",
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
+  timezone: process.env.DB_TIMEZONE || "+07:00",
 }
 
 // Create connection pool
@@ -21,6 +22,7 @@ export function getPool() {
       connectionLimit: 10,
       queueLimit: 0,
       connectTimeout: 60000,
+      dateStrings: true,
     })
   }
   return pool

@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Eye, Edit } from "lucide-react"
 import Link from "next/link"
-import { formatDateToBangkokTime } from "@/lib/date-utils"
+
 import { formatToThb } from "@/lib/currency-utils"
 
 
@@ -85,8 +85,8 @@ export default function RequestsPage() {
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
-                      {formatDateToBangkokTime(request.startDate)} -{" "}
-                      {formatDateToBangkokTime(request.endDate, { year: 'numeric' })}
+                      {new Date(request.startDate).toLocaleDateString()} -{" "}
+                      {new Date(request.endDate).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       {request.group} / {request.tier}
@@ -95,7 +95,7 @@ export default function RequestsPage() {
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{formatDateToBangkokTime(request.createdAt, { year: 'numeric' })}</TableCell>
+                    <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm" asChild>

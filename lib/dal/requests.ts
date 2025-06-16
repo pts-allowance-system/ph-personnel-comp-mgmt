@@ -1,4 +1,5 @@
 import { Database } from "../database"
+import { getCurrentBangkokTimestampForDB } from "../date-utils"
 import type { AllowanceRequest, FileUpload, Comment } from "../types"
 
 export class RequestsDAL {
@@ -160,7 +161,7 @@ export class RequestsDAL {
     static async create(requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">): Promise<string> {
     const id = Database.generateId()
 
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const now = getCurrentBangkokTimestampForDB();
     const data = {
       id,
       employee_id: requestData.employeeId,
@@ -207,7 +208,7 @@ export class RequestsDAL {
       data.rule_check_results = JSON.stringify(updates.ruleCheckResults)
     }
 
-    data.updated_at = new Date().toISOString()
+    data.updated_at = getCurrentBangkokTimestampForDB()
 
     return await Database.update("allowance_requests", data, { id })
   }

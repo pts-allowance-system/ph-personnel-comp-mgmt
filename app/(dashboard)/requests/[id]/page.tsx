@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { DocumentViewer } from "@/components/document-viewer"
 import { Separator } from "@/components/ui/separator"
 import { DollarSign, FileText, User } from "lucide-react"
-import { formatDateToBangkokTime } from "@/lib/date-utils";
+
 import { formatToThb } from "@/lib/currency-utils";
 
 export default function RequestDetailsPage() {
@@ -89,8 +89,8 @@ export default function RequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Period</label>
                 <p className="text-sm text-gray-900">
-                  {formatDateToBangkokTime(request.startDate, { year: 'numeric' })} -{" "}
-                  {formatDateToBangkokTime(request.endDate, { year: 'numeric' })}
+                  {new Date(request.startDate).toLocaleDateString()} -{" "}
+                  {new Date(request.endDate).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -104,13 +104,13 @@ export default function RequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Created</label>
                 <p className="text-sm text-gray-900">
-                  {formatDateToBangkokTime(request.createdAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(request.createdAt).toLocaleString()}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Last Updated</label>
                 <p className="text-sm text-gray-900">
-                  {formatDateToBangkokTime(request.updatedAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(request.updatedAt).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -181,7 +181,7 @@ export default function RequestDetailsPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">{comment.userName}</span>
                     <span className="text-xs text-gray-500">
-                      {formatDateToBangkokTime(comment.createdAt, { year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {new Date(comment.createdAt).toLocaleString()}
                     </span>
                   </div>
                   <p className="text-sm text-gray-700">{comment.message}</p>
