@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DollarSign, FileText, User, Check, X, Edit, PenTool } from "lucide-react"
-import { format } from "date-fns"
+import { format, parse } from "date-fns"
 import { StorageService } from "@/lib/storage"
 import type { AllowanceRequest, FileUpload } from "@/lib/types"
 
@@ -59,7 +59,8 @@ export default function SupervisorRequestDetailsPage() {
         }
 
         const data = await response.json()
-        setRequest(data.request)
+        // Handle both { request: ... } and { ... } response structures
+        setRequest(data.request || data)
       } catch (err) {
         setError("Error loading request details")
         console.error(err)
@@ -289,8 +290,8 @@ export default function SupervisorRequestDetailsPage() {
   }
 
   const calculateDays = () => {
-    const start = new Date(request.startDate)
-    const end = new Date(request.endDate)
+    const start = parse(request.startDate, "yyyy-MM-dd", new Date())
+    const end = parse(request.endDate, "yyyy-MM-dd", new Date())
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
   }
 
@@ -328,8 +329,8 @@ export default function SupervisorRequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Period</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.startDate), "MMM dd, yyyy")} -{" "}
-                  {format(new Date(request.endDate), "MMM dd, yyyy")}
+                  {format(parse(request.startDate, "yyyy-MM-dd", new Date()), "MMM dd, yyyy")} -{" "}
+                  {format(parse(request.endDate, "yyyy-MM-dd", new Date()), "MMM dd, yyyy")}
                 </p>
               </div>
             </div>
@@ -343,13 +344,13 @@ export default function SupervisorRequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">Created</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.createdAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {format(parse(request.createdAt, "yyyy-MM-dd HH:mm:ss", new Date()), "MMM dd, yyyy 'at' HH:mm")}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Last Updated</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.updatedAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {format(parse(request.updatedAt, "yyyy-MM-dd HH:mm:ss", new Date()), "MMM dd, yyyy 'at' HH:mm")}
                 </p>
               </div>
             </div>
