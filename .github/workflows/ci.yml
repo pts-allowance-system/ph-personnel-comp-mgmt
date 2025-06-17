@@ -55,8 +55,10 @@ jobs:
         run: npx pnpm install
 
       # -- Quality Checks ----------------------------------------------
-      - name: 🧹 Lint code
-        run: npx pnpm lint
+      - name: 🧹 Setup and run ESLint
+        run: |
+          echo '{ "extends": "next/core-web-vitals" }' > .eslintrc.json
+          npx pnpm lint
 
       # -- Static Analysis (SAST) -------------------------------------
       - name: 🛡️ Initialize CodeQL
