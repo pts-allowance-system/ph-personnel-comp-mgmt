@@ -36,6 +36,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: 🗂️ Setup pnpm store
+        id: pnpm-setup
         uses: pnpm/action-setup@v3
         with:
           version: latest
@@ -45,7 +46,7 @@ jobs:
         id: pnpm-cache
         uses: actions/cache@v4
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          path: ${{ steps.pnpm-setup.outputs.pnpm_cache_dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
