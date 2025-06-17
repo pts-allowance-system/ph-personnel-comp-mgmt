@@ -31,9 +31,18 @@ export async function verifyToken(request: NextRequest): Promise<TokenPayload | 
     }
 
     // Optionally verify user still exists and is active
-    const user = await UsersDAL.findById(decoded.userId);
+    const user = await UsersDAL.findById(decoded.userId)
+
+    // --- DEBUGGING: Log the user object and isActive status ---
+    console.log("[verifyToken] User found:", JSON.stringify(user, null, 2))
+    if (user) {
+      console.log(`[verifyToken] Checking user isActive status: ${user.isActive}, type: ${typeof user.isActive}`)
+    }
+    // --- END DEBUGGING ---
+
     if (!user || !user.isActive) {
-      return null;
+      console.error(`[verifyToken] Auth failed for user ${decoded.userId}. User not found or inactive.`)
+      return null
     }
 
     return {
