@@ -48,7 +48,7 @@ export default function HrRequestDetailsPage() {
         }
 
         const data = await response.json()
-        setRequest(data.request)
+        setRequest(data)
       } catch (err) {
         setError("Error loading request details")
         console.error(err)

@@ -5,6 +5,7 @@ import { useAuthStore } from "@/lib/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -52,15 +53,27 @@ export default function HrDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [requests, setRequests] = useState<RequestWithApprover[]>([])
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"))
+  const [selectedYear, setSelectedYear] = useState(format(new Date(), "yyyy"))
+  const [selectedMonthValue, setSelectedMonthValue] = useState(format(new Date(), "MM"))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [selectedRequest, setSelectedRequest] = useState<RequestWithApprover | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [selectedExportStatuses, setSelectedExportStatuses] = useState<string[]>([])
+
+  const selectedDateString = `${selectedYear}-${selectedMonthValue}`
 
   useEffect(() => {
-    fetchDashboardData()
+    if (token) {
+      fetchDashboardData()
+    }
   }, [token])
+
+  useEffect(() => {
+    // Reset selected statuses when the main filtered requests change
+    setSelectedExportStatuses(filteredRequests.map((r) => r.status).filter((v, i, a) => a.indexOf(v) === i))
+  }, [requests, selectedDateString])
 
   const fetchDashboardData = async () => {
     try {
@@ -97,25 +110,29 @@ export default function HrDashboardPage() {
   const handleExport = async (format: "csv" | "excel") => {
     try {
       setExporting(true)
-
-      const response = await fetch(`/api/hr/export?month=${selectedMonth}&format=${format}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const statusQuery = selectedExportStatuses.join(",")
+      const response = await fetch(
+        `/api/hr/export?month=${selectedDateString}&format=${format}&statuses=${statusQuery}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
 
       if (!response.ok) {
         throw new Error("Export failed")
       }
 
-      // Download the file
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `hr-report-${selectedMonth}.${format === "excel" ? "xlsx" : "csv"}`
+      a.download = `hr-report-${selectedDateString}.${format === "excel" ? "xlsx" : "csv"}`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+
+      setIsExportDialogOpen(false)
     } catch (err) {
       setError("Export failed")
       console.error(err)
@@ -136,9 +153,17 @@ export default function HrDashboardPage() {
 
   const filteredRequests = requests.filter((request) => {
     const requestDate = new Date(request.createdAt)
-    const selectedDate = new Date(selectedMonth + "-01")
+    const selectedDate = new Date(selectedDateString + "-01")
     return requestDate >= startOfMonth(selectedDate) && requestDate <= endOfMonth(selectedDate)
   })
+
+  const exportPreviewRequests = filteredRequests.filter((req) =>
+    selectedExportStatuses.includes(req.status)
+  )
+
+  const availableStatuses = [...new Set(filteredRequests.map((req) => req.status))]
+
+  const monthlyTotalAmount = filteredRequests.reduce((total, req) => total + req.totalAmount, 0)
 
   if (loading) {
     return <div className="flex justify-center p-8">Loading dashboard...</div>
@@ -152,31 +177,129 @@ export default function HrDashboardPage() {
           <p className="text-gray-600">Overview of allowance requests and system activity</p>
         </div>
         <div className="flex items-center space-x-4">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 12 }, (_, i) => {
-                const date = subMonths(new Date(), i)
-                const value = format(date, "yyyy-MM")
-                const label = format(date, "MMMM yyyy")
-                return (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-          <Button onClick={() => handleExport("csv")} disabled={exporting}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button onClick={() => handleExport("excel")} disabled={exporting}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Excel
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Select value={selectedMonthValue} onValueChange={setSelectedMonthValue}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const month = i + 1
+                  const value = month.toString().padStart(2, "0")
+                  const label = format(new Date(2000, i, 1), "MMMM")
+                  return (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="w-24">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - i
+                  const value = year.toString()
+                  return (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
+              <DialogHeader>
+                <DialogTitle>Export Requests</DialogTitle>
+                <DialogDescription>
+                  Preview and export requests for {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="p-4 border rounded-md">
+                  <h4 className="font-semibold mb-2">Filter by Status</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {availableStatuses.map((status) => (
+                      <div key={status} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`export-${status}`}
+                          checked={selectedExportStatuses.includes(status)}
+                          onCheckedChange={(checked) => {
+                            setSelectedExportStatuses((prev) =>
+                              checked ? [...prev, status] : prev.filter((s) => s !== status)
+                            )
+                          }}
+                        />
+                        <label
+                          htmlFor={`export-${status}`}
+                          className="text-sm font-medium capitalize"
+                        >
+                          {status.replace("-", " ")}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Preview</CardTitle>
+                    <CardDescription>
+                      Showing {exportPreviewRequests.length} of {filteredRequests.length} requests.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="max-h-64 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {exportPreviewRequests.map((req) => (
+                          <TableRow key={req.id}>
+                            <TableCell>{req.employeeName}</TableCell>
+                            <TableCell>฿{req.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <StatusBadge status={req.status} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="flex justify-end space-x-2 mt-4">
+                <Button
+                  onClick={() => handleExport("csv")}
+                  disabled={exporting || exportPreviewRequests.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button
+                  onClick={() => handleExport("excel")}
+                  disabled={exporting || exportPreviewRequests.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -187,15 +310,17 @@ export default function HrDashboardPage() {
       )}
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalRequests || 0}</div>
-            <p className="text-xs text-muted-foreground">All time</p>
+            <div className="text-2xl font-bold">{filteredRequests.length}</div>
+            <p className="text-xs text-muted-foreground">
+              In {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}
+            </p>
           </CardContent>
         </Card>
 
@@ -216,19 +341,8 @@ export default function HrDashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">฿{(stats?.totalAmount || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">All approved requests</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Processing</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.averageProcessingTime || 0}d</div>
-            <p className="text-xs text-muted-foreground">Average days to process</p>
+            <div className="text-2xl font-bold">฿{monthlyTotalAmount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">For all requests this month</p>
           </CardContent>
         </Card>
       </div>
@@ -287,7 +401,7 @@ export default function HrDashboardPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="h-5 w-5" />
-            <span>Requests for {format(new Date(selectedMonth + "-01"), "MMMM yyyy")}</span>
+            <span>Requests for {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}</span>
           </CardTitle>
           <CardDescription>
             Detailed view of all requests for the selected month ({filteredRequests.length} requests)
