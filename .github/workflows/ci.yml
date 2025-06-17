@@ -5,8 +5,8 @@ on:
     branches:
       - main
       - dev
-      - 'feat/**'
-      - 'fix/**'
+      - "feat/**"
+      - "fix/**"
   pull_request:
     branches:
       - main
@@ -51,11 +51,11 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npx pnpm install --frozen-lockfile
 
       # -- Quality Checks ----------------------------------------------
       - name: 🧹 Lint code
-        run: pnpm lint
+        run: npx pnpm lint
 
       # -- Static Analysis (SAST) -------------------------------------
       - name: 🛡️ Initialize CodeQL
@@ -85,33 +85,35 @@ jobs:
 
       # -- Build Application (CI only) ---------------------------------
       - name: 🏗️ Build Next.js app (CI check only)
-        run: pnpm build
+        run: npx pnpm build
         env:
-          DB_HOST: ci_dummy_host
+          DB_HOST: localhost
           DB_PORT: "3306"
-          DB_USER: ci_dummy_user
-          DB_PASSWORD: ci_dummy_password
-          DB_NAME: ci_dummy_db
+          DB_USER: root
+          DB_PASSWORD: krtn1234
+          DB_NAME: pts_system
           DB_SSL: "false"
           DATABASE_URL: "mysql://ci_dummy_user:ci_dummy_password@ci_dummy_host:3306/ci_dummy_db"
-          JWT_SECRET: "ci_dummy_jwt_secret_for_build_check_only"
-          NEXT_PUBLIC_SUPABASE_URL: "https://ci-dummy.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci_dummy_key_placeholder"
-          SUPABASE_SERVICE_ROLE_KEY: "ci_dummy_service_role_key_placeholder"
+          JWT_SECRET: "xP9kM4nJ2hL7vQ8tR5wY3cF6bA0sE1mD"
+          NEXT_PUBLIC_SUPABASE_URL: "https://mqrrkuccndpfnhruywuy.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xcnJrdWNjbmRwZm5ocnV5d3V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxNjU3MzQsImV4cCI6MjA2NDc0MTczNH0.z_XfNeN23vUyM-aCafVkrkoAJjnzsWXu73dTeY3u1bk"
+          SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
 
       # -- Run Tests ---------------------------------------------------
       - name: 🧪 Run tests
-        run: pnpm test
+        run: npx pnpm test
         env:
-          NODE_ENV: test
-          DB_HOST: ci_dummy_host
+          DB_HOST: localhost
           DB_PORT: "3306"
-          DB_USER: ci_dummy_user
-          DB_PASSWORD: ci_dummy_password
-          DB_NAME: ci_dummy_db
-          JWT_SECRET: "ci_dummy_jwt_secret_for_test_only"
-          NEXT_PUBLIC_SUPABASE_URL: "https://ci-dummy.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci_dummy_key_placeholder"
+          DB_USER: root
+          DB_PASSWORD: krtn1234
+          DB_NAME: pts_system
+          DB_SSL: "false"
+          DATABASE_URL: "mysql://ci_dummy_user:ci_dummy_password@ci_dummy_host:3306/ci_dummy_db"
+          JWT_SECRET: "xP9kM4nJ2hL7vQ8tR5wY3cF6bA0sE1mD"
+          NEXT_PUBLIC_SUPABASE_URL: "https://mqrrkuccndpfnhruywuy.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xcnJrdWNjbmRwZm5ocnV5d3V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxNjU3MzQsImV4cCI6MjA2NDc0MTczNH0.z_XfNeN23vUyM-aCafVkrkoAJjnzsWXu73dTeY3u1bk"
+          SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
 
       # -- Optional: Docker Compose Build & Test -----------------------
       # Uncomment below to build & run your app inside Docker containers
