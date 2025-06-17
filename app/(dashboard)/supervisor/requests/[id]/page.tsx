@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuthStore } from "@/lib/auth-store"
+import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -35,9 +36,12 @@ export default function SupervisorRequestDetailsPage() {
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [actionToConfirm, setActionToConfirm] = useState<"approve" | "reject" | null>(null)
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const signatureImportRef = useRef<HTMLInputElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [lastX, setLastX] = useState(0)
   const [lastY, setLastY] = useState(0)
@@ -155,6 +159,46 @@ export default function SupervisorRequestDetailsPage() {
     }
   }
 
+  const handleSignatureFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && user) {
+      if (!file.type.startsWith("image/")) {
+        setError("Please select an image file.")
+        return
+      }
+      try {
+        setSubmitting(true)
+        const folder = `signatures/${user.id}`
+        const uploadResult = await StorageService.uploadFile(file, folder)
+        if (uploadResult.success && uploadResult.url) {
+          const newSignatureFile: FileUpload = {
+            id: uploadResult.path!, // Using path as a unique ID
+            name: file.name,
+            url: uploadResult.url,
+            path: uploadResult.path!,
+            size: file.size,
+            type: file.type,
+            uploadedAt: new Date().toISOString(),
+          }
+          setSignatureFile(newSignatureFile)
+          setSignatureDialogOpen(false)
+          setError("")
+        } else {
+          throw new Error(uploadResult.error || "Failed to upload signature.")
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to upload signature.")
+        console.error(err)
+      } finally {
+        setSubmitting(false)
+      }
+    }
+  }
+
+  const triggerSignatureImport = () => {
+    signatureImportRef.current?.click()
+  }
+
   const saveSignature = async () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -196,22 +240,32 @@ export default function SupervisorRequestDetailsPage() {
     }
   }
 
-  const handleApprove = async () => {
+  const handleApprove = () => {
     if (!signatureFile) {
-      setError("Please add your signature to approve")
+      setError("Signature is required for approval.")
       return
     }
-
-    await updateRequest("approved")
+    setActionToConfirm("approve")
+    setIsConfirmOpen(true)
   }
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (comment.trim() === "") {
-      setError("Please provide a reason for rejection")
+      setError("A comment is required for rejection.")
       return
     }
+    setActionToConfirm("reject")
+    setIsConfirmOpen(true)
+  }
 
-    await updateRequest("rejected")
+  const handleConfirmAction = () => {
+    if (actionToConfirm === "approve") {
+      updateRequest("approved")
+    } else if (actionToConfirm === "reject") {
+      updateRequest("rejected")
+    }
+    setIsConfirmOpen(false)
+    setActionToConfirm(null)
   }
 
   const updateRequest = async (newStatus: string) => {
@@ -469,12 +523,22 @@ export default function SupervisorRequestDetailsPage() {
         </CardFooter>
       </Card>
 
+      <ConfirmationDialog
+        isOpen={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        onConfirm={handleConfirmAction}
+        title={`Confirm ${actionToConfirm === 'approve' ? 'Approval' : 'Rejection'}`}
+        description={`Are you sure you want to ${actionToConfirm} this request?`}
+      />
+
       {/* Signature Dialog */}
       <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Your Signature</DialogTitle>
-            <DialogDescription>Draw your signature below. This will be used to verify your approval.</DialogDescription>
+            <DialogDescription>
+              Draw your signature below or import an image. This will be used to verify your approval.
+            </DialogDescription>
           </DialogHeader>
           <div className="border rounded-md overflow-hidden bg-white">
             <canvas
@@ -491,13 +555,25 @@ export default function SupervisorRequestDetailsPage() {
               onTouchEnd={endDrawing}
             />
           </div>
-          <DialogFooter className="flex justify-between sm:justify-between">
-            <Button type="button" variant="outline" onClick={clearCanvas}>
-              Clear
+          <input
+            type="file"
+            ref={signatureImportRef}
+            onChange={handleSignatureFileChange}
+            className="hidden"
+            accept="image/png, image/jpeg, image/svg+xml"
+          />
+          <DialogFooter className="flex justify-between sm:justify-between w-full">
+            <Button type="button" variant="outline" onClick={triggerSignatureImport} disabled={submitting}>
+              Import File
             </Button>
-            <Button type="button" onClick={saveSignature}>
-              Save Signature
-            </Button>
+            <div className="flex space-x-2">
+              <Button type="button" variant="outline" onClick={clearCanvas} disabled={submitting}>
+                Clear
+              </Button>
+              <Button type="button" onClick={saveSignature} disabled={submitting}>
+                {submitting ? "Saving..." : "Save Signature"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
