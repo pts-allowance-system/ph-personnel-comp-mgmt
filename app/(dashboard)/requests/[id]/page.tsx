@@ -1,22 +1,28 @@
 "use client"
 
 import React from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/auth-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/status-badge"
 import { DocumentViewer } from "@/components/document-viewer"
 import { Separator } from "@/components/ui/separator"
-import { DollarSign, FileText, User } from "lucide-react"
+import { DollarSign, FileText, User, Send } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import { formatToThb } from "@/lib/currency-utils";
 
 export default function RequestDetailsPage() {
   const params = useParams()
-  const { requests } = useDataStore()
+  const router = useRouter()
+  const { requests, updateRequest } = useDataStore()
+  const { token } = useAuthStore()
   const [loading, setLoading] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [error, setError] = React.useState("")
   const [fetchedRequest, setFetchedRequest] = React.useState<any>(null)
-  const request = requests.find((r) => r.id === params.id) || fetchedRequest
+  let request = requests.find((r) => r.id === params.id) || fetchedRequest
 
   React.useEffect(() => {
     // If params.id is "true", it's likely a filter, not an ID.
@@ -36,6 +42,29 @@ export default function RequestDetailsPage() {
         .finally(() => setLoading(false))
     }
   }, [params.id, request])
+
+  const handleSubmitForApproval = async () => {
+    if (!request || !token) return
+
+    setIsSubmitting(true)
+    setError("")
+
+    try {
+      const success = await updateRequest(request.id, { status: "submitted" }, token)
+      if (success) {
+        // Re-fetch or update local state to reflect the change
+        const updatedRequest = { ...request, status: "submitted" }
+        setFetchedRequest(updatedRequest) // Update local state immediately
+        // Optionally, you could re-fetch all requests or just this one
+      } else {
+        throw new Error("Failed to submit for approval.")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   if (loading) {
     return <div className="text-center py-8"><p className="text-gray-500">Loading request...</p></div>
@@ -62,7 +91,15 @@ export default function RequestDetailsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Request Details</h1>
           <p className="text-gray-600">Request ID: {request.id}</p>
         </div>
-        <StatusBadge status={request.status} />
+        <div className="flex items-center space-x-4">
+          <StatusBadge status={request.status} />
+          {request.status === "draft" && (
+            <Button onClick={handleSubmitForApproval} disabled={isSubmitting}>
+              <Send className="mr-2 h-4 w-4" />
+              {isSubmitting ? "Submitting..." : "Submit for Approval"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Request Information */}

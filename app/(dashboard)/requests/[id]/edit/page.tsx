@@ -1,14 +1,12 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import React, { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { useAuthStore } from "@/lib/auth-store"
 import { useDataStore } from "@/lib/data-store"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,121 +16,110 @@ import { FileUploadComponent } from "@/components/file-upload"
 import type { FileUpload, AllowanceRequest } from "@/lib/types"
 import { formatToThb } from "@/lib/currency-utils"
 
-export default function NewRequestPage() {
+export default function EditRequestPage() {
   const { user, token } = useAuthStore()
-  const { rates, fetchRates, addRequest, loading, error } = useDataStore()
+  const { rates, fetchRates, updateRequest, loading, error } = useDataStore()
   const router = useRouter()
+  const params = useParams()
 
-  const [formData, setFormData] = useState({
-    group: "",
-    tier: "",
-    startDate: "",
-    endDate: "",
-    documents: [] as FileUpload[],
-    notes: "",
-  })
+  const [formData, setFormData] = useState<Partial<AllowanceRequest>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState("")
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
-  const [requestData, setRequestData] = useState<any>(null)
+  const [updateData, setUpdateData] = useState<any>(null)
 
-  // Fetch rates on component mount
   useEffect(() => {
     if (token) {
       fetchRates(token)
     }
   }, [token, fetchRates])
 
+  useEffect(() => {
+    async function fetchRequest() {
+      try {
+        const response = await fetch(`/api/requests/${params.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!response.ok) throw new Error("Failed to fetch request")
+        const data = await response.json()
+        setFormData(data)
+      } catch (err) {
+        setFormError("Failed to load request data.")
+      }
+    }
+    if (params.id && token) {
+      fetchRequest()
+    }
+  }, [params.id, token])
+
   const handleSubmit = async (e: React.FormEvent, isDraft = false) => {
     e.preventDefault()
     setFormError("")
 
-    if (!user) {
-      setFormError("User not found. Please log in again.")
-      return
-    }
-
+    if (!user) throw new Error("User not found")
     if (!formData.group || !formData.tier || !formData.startDate || !formData.endDate) {
-      setFormError("Please fill in all required fields.")
-      return
+      throw new Error("Please fill in all required fields")
     }
 
     const rate = rates.find((r) => r.group === formData.group && r.tier === formData.tier)
-    if (!rate) {
-      setFormError("Rate not found for the selected group and tier.")
-      return
-    }
+    if (!rate) throw new Error("Rate not found for selected group and tier")
 
     const startDate = new Date(formData.startDate)
     const endDate = new Date(formData.endDate)
-
-    if (endDate <= startDate) {
-      setFormError("End date must be after the start date.")
-      return
-    }
+    if (endDate <= startDate) throw new Error("End date must be after start date")
 
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    const zoneMultiplier = 1.2 // Example multiplier
+    const zoneMultiplier = 1.2
     const totalAmount = rate.baseRate * days * zoneMultiplier
 
-    const newRequestData = {
+    const newStatus: AllowanceRequest['status'] = isDraft ? "draft" : "submitted"
+
+    const dataToUpdate = {
       ...formData,
-      employeeId: user.id,
-      employeeName: user.name,
       baseRate: rate.baseRate,
       zoneMultiplier,
       totalAmount,
-      status: isDraft ? "draft" : "submitted",
+      status: newStatus,
     }
 
-    setRequestData(newRequestData)
+    setUpdateData(dataToUpdate)
     setIsConfirmOpen(true)
   }
 
-  const handleConfirmSubmit = async () => {
-    if (!requestData) return
+  const handleConfirmUpdate = async () => {
+    if (!updateData) return
 
     setIsSubmitting(true)
     try {
-      const createdRequest = await addRequest(requestData, token!)
-      if (createdRequest) {
-        router.push(`/requests/${createdRequest.id}`)
-      } else {
-        throw new Error("Failed to create request. Please try again.")
-      }
+      await updateRequest(params.id as string, updateData, token!)
+      router.push(`/requests/${params.id}`)
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "An unexpected error occurred.")
+      setFormError(err instanceof Error ? err.message : "Failed to update request")
+    } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Get unique groups and tiers from rates
   const groups = [...new Set(rates.map((r) => r.group))]
   const tiers = formData.group ? [...new Set(rates.filter((r) => r.group === formData.group).map((r) => r.tier))] : []
 
-  if (!user) return null
+  if (loading || !formData.id) return <div>Loading...</div>
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Allowance Request</h1>
-        <p className="text-gray-600">Create a new special position allowance request</p>
-      </div>
-
       <Card>
         <CardHeader>
-          <CardTitle>Request Details</CardTitle>
-          <CardDescription>Fill in the details for your allowance request</CardDescription>
+          <CardTitle>Edit Allowance Request</CardTitle>
+          <CardDescription>Update the details of your request.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+          <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="group">Group *</Label>
                 <Select
-                  value={formData.group}
+                  value={formData.group || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, group: value, tier: "" }))}
-                  disabled={loading}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select group" />
@@ -146,13 +133,12 @@ export default function NewRequestPage() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="tier">Tier *</Label>
                 <Select
-                  value={formData.tier}
+                  value={formData.tier || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, tier: value }))}
-                  disabled={loading || !formData.group}
+                  disabled={!formData.group}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select tier" />
@@ -168,12 +154,11 @@ export default function NewRequestPage() {
               </div>
             </div>
 
-            {/* Show rate information if both group and tier are selected */}
             {formData.group && formData.tier && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-800">
-                  <strong>Base Rate:</strong> 
-                  {formatToThb(rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate)}{" "}
+                  <strong>Base Rate:</strong>
+                  {formatToThb(rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate)}
                   per day
                 </p>
               </div>
@@ -185,18 +170,17 @@ export default function NewRequestPage() {
                 <Input
                   id="startDate"
                   type="date"
-                  value={formData.startDate}
+                  value={formData.startDate?.split('T')[0] || ''}
                   onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
                   required
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="endDate">End Date *</Label>
                 <Input
                   id="endDate"
                   type="date"
-                  value={formData.endDate}
+                  value={formData.endDate?.split('T')[0] || ''}
                   onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
                   required
                 />
@@ -206,7 +190,7 @@ export default function NewRequestPage() {
             <div className="space-y-2">
               <Label>Supporting Documents</Label>
               <FileUploadComponent
-                files={formData.documents}
+                files={formData.documents || []}
                 onFilesChange={(files) => setFormData((prev) => ({ ...prev, documents: files }))}
                 folder="requests"
                 maxFiles={5}
@@ -218,7 +202,7 @@ export default function NewRequestPage() {
               <Textarea
                 id="notes"
                 placeholder="Additional notes or comments"
-                value={formData.notes}
+                value={formData.notes || ""}
                 onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
               />
             </div>
@@ -229,32 +213,36 @@ export default function NewRequestPage() {
               </Alert>
             )}
 
-            {loading && (
-              <Alert>
-                <AlertDescription>Loading rates...</AlertDescription>
-              </Alert>
-            )}
-
-            <CardFooter className="flex justify-end space-x-4">
-              <Button variant="outline" onClick={() => router.push("/")}>
+            <div className="flex space-x-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.back()}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="button" variant="secondary" onClick={(e) => handleSubmit(e, true)} disabled={isSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => handleSubmit(e, true)}
+                disabled={isSubmitting}
+              >
                 Save as Draft
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Submit Request"}
+              <Button type="submit" disabled={isSubmitting || !formData.group || !formData.tier}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
-            </CardFooter>
+            </div>
           </form>
         </CardContent>
       </Card>
       <ConfirmationDialog
         isOpen={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
-        onConfirm={handleConfirmSubmit}
-        title="Are you sure?"
-        description="Please review the request details before submitting. This action cannot be undone."
+        onConfirm={handleConfirmUpdate}
+        title="Confirm Changes"
+        description="Are you sure you want to save these changes?"
       />
     </div>
   )

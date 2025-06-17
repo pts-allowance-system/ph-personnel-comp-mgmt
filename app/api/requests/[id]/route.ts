@@ -56,23 +56,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
 
-    // const user = await verifyToken(request) // Commented for debugging
-    // if (!user) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    // }
+    const user = await verifyToken(request)
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    // const updates = await request.json() // Commented for debugging
+    const updates = await request.json()
 
-    // const success = await RequestsDAL.update(requestIdFromParams, updates) // Commented for debugging
+    const success = await RequestsDAL.update(requestIdFromParams, updates)
 
-    // if (!success) {
-    //   return NextResponse.json({ error: "Request not found" }, { status: 404 })
-    // }
+    if (!success) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 })
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Request updated successfully (PATCH - simplified for debugging)",
-      idFromParams: requestIdFromParams
+      message: "Request updated successfully",
     })
   } catch (error) {
     console.error("Update request error:", error)

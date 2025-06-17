@@ -4,6 +4,7 @@ import { verifyToken } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const { id } = await params
     const user = await verifyToken(request)
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Comment message is required" }, { status: 400 })
     }
 
-    await RequestsDAL.addComment(params.id, user.userId, message)
+    await RequestsDAL.addComment(id, user.userId, message)
 
     return NextResponse.json({
       success: true,

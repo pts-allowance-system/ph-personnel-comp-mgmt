@@ -5,6 +5,7 @@ import type { FileUpload } from "@/lib/types"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const { id } = await params
     const user = await verifyToken(request)
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -14,13 +15,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // Handle single document
     if (body.document) {
-      await RequestsDAL.addDocument(params.id, body.document as FileUpload)
+      await RequestsDAL.addDocument(id, body.document as FileUpload)
     }
 
     // Handle multiple documents
     if (body.documents && Array.isArray(body.documents)) {
       for (const doc of body.documents) {
-        await RequestsDAL.addDocument(params.id, doc as FileUpload)
+        await RequestsDAL.addDocument(id, doc as FileUpload)
       }
     }
 
