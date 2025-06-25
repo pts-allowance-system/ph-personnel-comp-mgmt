@@ -13,12 +13,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const month = searchParams.get("month") || format(new Date(), "yyyy-MM")
     const exportFormat = searchParams.get("format") || "csv"
+    const statuses = searchParams.get("statuses")?.split(",").filter(s => s)
 
     const startDate = startOfMonth(new Date(month + "-01"))
     const endDate = endOfMonth(new Date(month + "-01"))
 
     // Get detailed request data for the month
-    const query = `
+    let query = `
       SELECT 
         r.id,
         r.employee_id,
@@ -46,13 +47,20 @@ export async function GET(request: NextRequest) {
         AND rc_hr.user_id IN (SELECT id FROM users WHERE role = 'hr')
       LEFT JOIN users hr_user ON rc_hr.user_id = hr_user.id
       WHERE r.created_at >= ? AND r.created_at <= ?
-      ORDER BY r.created_at DESC
     `
-
-    const requests = await Database.query(query, [
+    const params: (string | number)[] = [
       format(startDate, "yyyy-MM-dd HH:mm:ss"),
       format(endDate, "yyyy-MM-dd HH:mm:ss"),
-    ])
+    ]
+
+    if (statuses && statuses.length > 0) {
+      query += ` AND r.status IN (${statuses.map(() => "?").join(",")})`
+      params.push(...statuses)
+    }
+
+    query += ` ORDER BY r.created_at DESC`
+
+    const requests = await Database.query(query, params)
 
     if (exportFormat === "csv") {
       // Generate CSV
@@ -75,7 +83,14 @@ export async function GET(request: NextRequest) {
         "Updated Date",
       ]
 
+      const filterDescription = `Report for: ${format(
+        new Date(month + "-01"),
+        "MMMM yyyy"
+      )}. Statuses: ${statuses && statuses.length > 0 ? statuses.join(", ") : "All"}.`
+
       const csvContent = [
+        `"${filterDescription}"`,
+        "",
         headers.join(","),
         ...requests.map((req: any) =>
           [
@@ -127,7 +142,14 @@ export async function GET(request: NextRequest) {
         "Updated Date",
       ]
 
+      const filterDescription = `Report for: ${format(
+        new Date(month + "-01"),
+        "MMMM yyyy"
+      )}. Statuses: ${statuses && statuses.length > 0 ? statuses.join(", ") : "All"}.`
+
       const csvContent = [
+        `"${filterDescription}"`,
+        "",
         headers.join(","),
         ...requests.map((req: any) =>
           [
