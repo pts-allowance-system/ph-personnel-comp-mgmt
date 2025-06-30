@@ -5,14 +5,16 @@ interface DataState {
   requests: AllowanceRequest[]
   rates: Rate[]
   rules: Rule[]
+  fetchRules: (token: string) => Promise<void>
   loading: boolean
   error: string | null
   authErrorCallback: (() => void) | null // Added for auth error handling
   setAuthErrorCallback: (callback: (() => void) | null) => void // Added to set the callback
-  fetchRequests: (token: string, userId?: string, status?: string) => Promise<void>
+  fetchRequests: (token: string, options?: { userId?: string; fetchAll?: boolean }) => Promise<void>
   fetchRates: (token: string) => Promise<void>
   addRequest: (request: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt">, token: string) => Promise<AllowanceRequest | null>
   updateRequest: (id: string, updates: Partial<AllowanceRequest>, token: string) => Promise<boolean>
+  fetchRequestsByDepartment: (token: string, department: string) => Promise<void>
   clearData: () => void
 }
 
@@ -26,7 +28,8 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   setAuthErrorCallback: (callback) => set({ authErrorCallback: callback }), // Implement setAuthErrorCallback
 
-  fetchRequests: async (token: string, userId?: string, status?: string) => {
+  fetchRequests: async (token: string, options: { userId?: string; fetchAll?: boolean } = {}) => {
+    const { userId, fetchAll = false } = options;
     try {
       if (!token) {
         set({ error: "Authentication token is required", loading: false })
@@ -38,8 +41,11 @@ export const useDataStore = create<DataState>((set, get) => ({
       let url = "/api/requests"
       const params = new URLSearchParams()
 
-      if (userId) params.append("userId", userId)
-      if (status) params.append("status", status)
+      if (userId) {
+        params.append("userId", userId)
+      }
+      // Always pass fetchAll to the API
+      params.append("fetchAll", String(fetchAll))
 
       if (params.toString()) {
         url += `?${params.toString()}`
@@ -65,6 +71,38 @@ export const useDataStore = create<DataState>((set, get) => ({
       set({ requests: data.requests, loading: false })
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch requests", loading: false })
+    }
+  },
+
+  fetchRules: async (token: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return
+      }
+
+      set({ loading: true, error: null })
+
+      const response = await fetch("/api/admin/rules", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.status === 401) {
+        set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.()
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch rules: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      set({ rules: data.rules, loading: false })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to fetch rules", loading: false })
     }
   },
 
@@ -177,6 +215,38 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to update request", loading: false })
       return false
+    }
+  },
+
+  fetchRequestsByDepartment: async (token: string, department: string) => {
+    try {
+      if (!token) {
+        set({ error: "Authentication token is required", loading: false })
+        return
+      }
+
+      set({ loading: true, error: null })
+
+      const response = await fetch(`/api/requests?department=${department}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.status === 401) {
+        set({ error: "Session expired. Please login again.", loading: false })
+        get().authErrorCallback?.()
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch requests: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      set({ requests: data.requests, loading: false })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to fetch requests", loading: false })
     }
   },
 

@@ -11,26 +11,39 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get("status")
+    const fetchAll = searchParams.get("fetchAll") === "true"
     const userId = searchParams.get("userId")
+    const department = searchParams.get("department")
+
+    console.log(`API: Received request for user role: ${user.role}, userId: ${userId}, department: ${department}, fetchAll: ${fetchAll}`);
 
     let requests
-    if (status) {
-      requests = await RequestsDAL.findByStatus(status)
+    if (department) {
+      console.log(`API: Fetching requests for department: ${department}`);
+      requests = await RequestsDAL.findByDepartment(department)
     } else if (userId) {
-      requests = await RequestsDAL.findByUserId(userId)
+      console.log(`API: Fetching requests for userId: ${userId}, fetchAll: ${fetchAll}`);
+      requests = await RequestsDAL.findByUserId(userId, fetchAll)
     } else if (user.role === "employee") {
-      requests = await RequestsDAL.findByUserId(user.userId)
+      console.log(`API: Fetching requests for employee: ${user.userId}, fetchAll: ${fetchAll}`);
+      requests = await RequestsDAL.findByUserId(user.userId, fetchAll)
     } else {
-      // For supervisors, HR, finance - get requests based on status
       const statusMap = {
         supervisor: "submitted",
         hr: "approved",
         finance: "hr-checked",
       }
-      const defaultStatus = statusMap[user.role as keyof typeof statusMap]
-      requests = defaultStatus ? await RequestsDAL.findByStatus(defaultStatus) : []
+      if (fetchAll) {
+        console.log(`API: Fetching all requests for role: ${user.role}`);
+        requests = await RequestsDAL.findAllWithDetails();
+      } else {
+        const roleStatus = statusMap[user.role as keyof typeof statusMap];
+        console.log(`API: Fetching requests for role: ${user.role} with status: ${roleStatus}`);
+        requests = roleStatus ? await RequestsDAL.findByStatus(roleStatus) : [];
+      }
     }
+
+    console.log(`API: Found ${requests.length} requests.`);
 
     return NextResponse.json({ requests })
   } catch (error) {

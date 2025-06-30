@@ -10,6 +10,7 @@ import { DocumentViewer } from "@/components/document-viewer"
 import { Separator } from "@/components/ui/separator"
 import { DollarSign, FileText, User, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ProgressTracker } from "@/components/progress-tracker"
 
 import { formatToThb } from "@/lib/currency-utils";
 
@@ -86,6 +87,16 @@ export default function RequestDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {request && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Request Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProgressTracker currentStatus={request.status} />
+          </CardContent>
+        </Card>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Request Details</h1>

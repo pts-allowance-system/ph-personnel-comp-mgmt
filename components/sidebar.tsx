@@ -6,16 +6,26 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { FileText, Users, DollarSign, Settings, BarChart3, CheckSquare, UserCheck, CreditCard } from "lucide-react"
 
+import { History } from 'lucide-react';
+
 const roleMenus = {
-  employee: [{ href: "/requests", label: "My Requests", icon: FileText }],
-  supervisor: [{ href: "/supervisor/requests", label: "Review Requests", icon: UserCheck }],
+  employee: [
+    { href: "/requests", label: "My Requests", icon: FileText },
+    { href: "/requests/history", label: "My History", icon: History },
+  ],
+  supervisor: [
+    { href: "/supervisor/requests", label: "Review Requests", icon: UserCheck },
+    { href: "/supervisor/history", label: "Department History", icon: History },
+  ],
   hr: [
     { href: "/hr/dashboard", label: "Dashboard", icon: BarChart3 },
     { href: "/hr/requests", label: "HR Review", icon: CheckSquare },
+    { href: "/hr/history", label: "Request History", icon: History },
   ],
   finance: [
     { href: "/finance/dashboard", label: "Dashboard", icon: BarChart3 },
     { href: "/finance/requests", label: "Disbursements", icon: CreditCard },
+    { href: "/finance/history", label: "Request History", icon: History },
   ],
   admin: [
     { href: "/admin/users", label: "Users", icon: Users },

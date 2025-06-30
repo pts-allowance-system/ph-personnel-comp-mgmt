@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Search, Edit, MoreHorizontal } from "lucide-react"
+import Link from "next/link"
 import type { User } from "@/lib/types"
 
 export default function AdminUsersPage() {
@@ -69,9 +70,11 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600">Manage system users and their permissions</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
+        <Button asChild>
+          <Link href="/admin/users/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Link>
         </Button>
       </div>
 
@@ -143,8 +146,10 @@ export default function AdminUsersPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/admin/users/${user.id}`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
                       </Button>
                       <Button variant="ghost" size="sm">
                         <MoreHorizontal className="h-4 w-4" />
