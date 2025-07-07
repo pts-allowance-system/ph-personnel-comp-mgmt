@@ -1,16 +1,19 @@
 "use client"
 
 import { useEffect } from "react"
+import Link from "next/link"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
+import { Eye } from "lucide-react"
+
 import { useAuthStore } from "@/lib/auth-store"
 import { useDataStore } from "@/lib/data-store"
+import { formatToThb } from "@/lib/currency-utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye } from "lucide-react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { formatToThb } from "@/lib/currency-utils"
 
 export default function SupervisorHistoryPage() {
   const { user, token } = useAuthStore()
@@ -27,14 +30,14 @@ export default function SupervisorHistoryPage() {
   }, [token, user, fetchRequestsByDepartment, clearData])
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading department requests...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดคำขอของแผนก...</div>
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Department Request History</h1>
-        <p className="text-gray-600">View all requests submitted by your department members</p>
+        <h1 className="text-2xl font-bold text-gray-900">ประวัติคำขอของแผนก</h1>
+        <p className="text-gray-600">ดูคำขอทั้งหมดที่ส่งโดยสมาชิกในแผนกของคุณ</p>
       </div>
 
       {error && (
@@ -45,24 +48,24 @@ export default function SupervisorHistoryPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Department Requests</CardTitle>
-          <CardDescription>A log of all allowance requests from your department</CardDescription>
+          <CardTitle>คำขอของแผนก</CardTitle>
+          <CardDescription>บันทึกคำขอเบิกค่าใช้จ่ายทั้งหมดจากแผนกของคุณ</CardDescription>
         </CardHeader>
         <CardContent>
           {requests.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No requests found for your department</p>
+              <p className="text-gray-500">ไม่พบคำขอสำหรับแผนกของคุณ</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>พนักงาน</TableHead>
+                  <TableHead>ช่วงเวลา</TableHead>
+                  <TableHead>จำนวนเงิน</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>วันที่ส่ง</TableHead>
+                  <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -70,14 +73,14 @@ export default function SupervisorHistoryPage() {
                   <TableRow key={request.id}>
                     <TableCell>{request.employeeName}</TableCell>
                     <TableCell>
-                      {new Date(request.startDate).toLocaleDateString()} -{" "}
-                      {new Date(request.endDate).toLocaleDateString()}
+                      {format(new Date(request.startDate), "d MMM yy", { locale: th })} -{" "}
+                      {format(new Date(request.endDate), "d MMM yy", { locale: th })}
                     </TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{format(new Date(request.createdAt), "d MMM yy", { locale: th })}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/requests/${request.id}`}>

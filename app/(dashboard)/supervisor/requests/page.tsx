@@ -9,6 +9,8 @@ import { StatusBadge } from "@/components/status-badge"
 import { Eye } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
+import { th } from "date-fns/locale"
+import { formatToThb } from "@/lib/currency-utils"
 import type { AllowanceRequest } from "@/lib/types"
 
 export default function SupervisorRequestsPage() {
@@ -28,13 +30,13 @@ export default function SupervisorRequestsPage() {
         })
 
         if (!response.ok) {
-          throw new Error("Failed to fetch requests")
+          throw new Error("ไม่สามารถดึงข้อมูลคำขอได้")
         }
 
         const data = await response.json()
         setRequests(data.requests)
       } catch (err) {
-        setError("Error loading requests")
+        setError("เกิดข้อผิดพลาดในการโหลดคำขอ")
         console.error(err)
       } finally {
         setLoading(false)
@@ -47,38 +49,38 @@ export default function SupervisorRequestsPage() {
   }, [token])
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading requests...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดคำขอ...</div>
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Review Requests</h1>
-        <p className="text-gray-600">Review and approve allowance requests from your team</p>
+        <h1 className="text-2xl font-bold text-gray-900">ตรวจสอบคำขอ</h1>
+        <p className="text-gray-600">ตรวจสอบและอนุมัติคำขอเบี้ยเลี้ยงจากทีมของคุณ</p>
       </div>
 
       {error && <div className="text-red-500">{error}</div>}
 
       <Card>
         <CardHeader>
-          <CardTitle>Pending Requests</CardTitle>
-          <CardDescription>Requests waiting for supervisor approval</CardDescription>
+          <CardTitle>คำขอที่รอดำเนินการ</CardTitle>
+          <CardDescription>คำขอที่รอการอนุมัติจากหัวหน้างาน</CardDescription>
         </CardHeader>
         <CardContent>
           {requests.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No pending requests</p>
+              <p className="text-gray-500">ไม่มีคำขอที่รอดำเนินการ</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Group/Tier</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>พนักงาน</TableHead>
+                  <TableHead>กลุ่ม/ระดับ</TableHead>
+                  <TableHead>ช่วงเวลา</TableHead>
+                  <TableHead>จำนวนเงิน</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -89,10 +91,10 @@ export default function SupervisorRequestsPage() {
                       {request.group} / {request.tier}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(request.startDate), "MMM dd")} -{" "}
-                      {format(new Date(request.endDate), "MMM dd, yyyy")}
+                      {format(new Date(request.startDate), "d MMM", { locale: th })} -{" "}
+                      {format(new Date(request.endDate), "d MMM yyyy", { locale: th })}
                     </TableCell>
-                    <TableCell>฿{request.totalAmount.toLocaleString()}</TableCell>
+                    <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
@@ -100,7 +102,7 @@ export default function SupervisorRequestsPage() {
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/supervisor/requests/${request.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
-                          Review
+                          ตรวจสอบ
                         </Link>
                       </Button>
                     </TableCell>

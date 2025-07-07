@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { DollarSign, FileText, User, Check, X, Edit, PenTool } from "lucide-react"
 import { format, parse } from "date-fns"
+import { th } from "date-fns/locale"
 import { StorageService } from "@/lib/storage"
 import type { AllowanceRequest, FileUpload } from "@/lib/types"
 
@@ -59,14 +60,14 @@ export default function SupervisorRequestDetailsPage() {
         })
 
         if (!response.ok) {
-          throw new Error("Failed to fetch request")
+          throw new Error("ไม่สามารถดึงข้อมูลคำขอได้")
         }
 
         const data = await response.json()
         // Handle both { request: ... } and { ... } response structures
         setRequest(data.request || data)
       } catch (err) {
-        setError("Error loading request details")
+        setError("เกิดข้อผิดพลาดในการโหลดรายละเอียดคำขอ")
         console.error(err)
       } finally {
         setLoading(false)
@@ -163,7 +164,7 @@ export default function SupervisorRequestDetailsPage() {
     const file = event.target.files?.[0]
     if (file && user) {
       if (!file.type.startsWith("image/")) {
-        setError("Please select an image file.")
+        setError("กรุณาเลือกไฟล์รูปภาพ")
         return
       }
       try {
@@ -184,10 +185,10 @@ export default function SupervisorRequestDetailsPage() {
           setSignatureDialogOpen(false)
           setError("")
         } else {
-          throw new Error(uploadResult.error || "Failed to upload signature.")
+          throw new Error(uploadResult.error || "ไม่สามารถอัปโหลดลายเซ็นได้")
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to upload signature.")
+        setError(err instanceof Error ? err.message : "ไม่สามารถอัปโหลดลายเซ็นได้")
         console.error(err)
       } finally {
         setSubmitting(false)
@@ -204,11 +205,12 @@ export default function SupervisorRequestDetailsPage() {
     if (!canvas) return
 
     try {
+      setSubmitting(true)
       // Convert canvas to blob
-      const blob = await new Promise<Blob>((resolve) => {
+      const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob)
-          else throw new Error("Failed to create blob")
+          else reject(new Error("ไม่สามารถสร้าง blob ได้"))
         }, "image/png")
       })
 
@@ -232,17 +234,19 @@ export default function SupervisorRequestDetailsPage() {
         setSignatureFile(signatureFile)
         setSignatureDialogOpen(false)
       } else {
-        throw new Error(result.error || "Upload failed")
+        throw new Error(result.error || "การอัปโหลดล้มเหลว")
       }
     } catch (err) {
-      console.error("Error saving signature:", err)
-      setError("Failed to save signature")
+      console.error("เกิดข้อผิดพลาดในการบันทึกลายเซ็น:", err)
+      setError("ไม่สามารถบันทึกลายเซ็นได้")
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleApprove = () => {
     if (!signatureFile) {
-      setError("Signature is required for approval.")
+      setError("จำเป็นต้องมีลายเซ็นเพื่ออนุมัติ")
       return
     }
     setActionToConfirm("approve")
@@ -251,7 +255,7 @@ export default function SupervisorRequestDetailsPage() {
 
   const handleReject = () => {
     if (comment.trim() === "") {
-      setError("A comment is required for rejection.")
+      setError("จำเป็นต้องระบุความคิดเห็นเพื่อปฏิเสธ")
       return
     }
     setActionToConfirm("reject")
@@ -314,13 +318,13 @@ export default function SupervisorRequestDetailsPage() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update request")
+        throw new Error("ไม่สามารถอัปเดตคำขอได้")
       }
 
       // Redirect back to the list
       router.push("/supervisor/requests")
     } catch (err) {
-      setError("Error updating request")
+      setError("เกิดข้อผิดพลาดในการอัปเดตคำขอ")
       console.error(err)
     } finally {
       setSubmitting(false)
@@ -328,10 +332,10 @@ export default function SupervisorRequestDetailsPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading request details...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดรายละเอียดคำขอ...</div>
   }
 
-  if (error) {
+  if (error && !submitting) {
     return (
       <Alert variant="destructive" className="my-4">
         <AlertDescription>{error}</AlertDescription>
@@ -340,7 +344,7 @@ export default function SupervisorRequestDetailsPage() {
   }
 
   if (!request) {
-    return <div className="flex justify-center p-8">Request not found</div>
+    return <div className="flex justify-center p-8">ไม่พบคำขอ</div>
   }
 
   const calculateDays = () => {
@@ -349,12 +353,20 @@ export default function SupervisorRequestDetailsPage() {
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
   }
 
+  const formatToThb = (amount: number) => {
+    return new Intl.NumberFormat("th-TH", {
+      style: "currency",
+      currency: "THB",
+      minimumFractionDigits: 2,
+    }).format(amount)
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Review Request</h1>
-          <p className="text-gray-600">Request ID: {request.id}</p>
+          <h1 className="text-2xl font-bold text-gray-900">ตรวจสอบคำขอ</h1>
+          <p className="text-gray-600">รหัสคำขอ: {request.id}</p>
         </div>
         <StatusBadge status={request.status} />
       </div>
@@ -364,47 +376,47 @@ export default function SupervisorRequestDetailsPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <User className="h-5 w-5" />
-            <span>Request Information</span>
+            <span>ข้อมูลคำขอ</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Employee</label>
+                <label className="text-sm font-medium text-gray-500">พนักงาน</label>
                 <p className="text-sm text-gray-900">{request.employeeName}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Group / Tier</label>
+                <label className="text-sm font-medium text-gray-500">กลุ่ม / ระดับ</label>
                 <p className="text-sm text-gray-900">
                   {request.group} / {request.tier}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Period</label>
+                <label className="text-sm font-medium text-gray-500">ช่วงเวลา</label>
                 <p className="text-sm text-gray-900">
-                  {format(parse(request.startDate, "yyyy-MM-dd", new Date()), "MMM dd, yyyy")} -{" "}
-                  {format(parse(request.endDate, "yyyy-MM-dd", new Date()), "MMM dd, yyyy")}
+                  {format(parse(request.startDate, "yyyy-MM-dd", new Date()), "d MMM yyyy", { locale: th })} -{" "}
+                  {format(parse(request.endDate, "yyyy-MM-dd", new Date()), "d MMM yyyy", { locale: th })}
                 </p>
               </div>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Status</label>
+                <label className="text-sm font-medium text-gray-500">สถานะ</label>
                 <div className="mt-1">
                   <StatusBadge status={request.status} />
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Created</label>
+                <label className="text-sm font-medium text-gray-500">สร้างเมื่อ</label>
                 <p className="text-sm text-gray-900">
-                  {format(parse(request.createdAt, "yyyy-MM-dd HH:mm:ss", new Date()), "MMM dd, yyyy 'at' HH:mm")}
+                  {format(parse(request.createdAt, "yyyy-MM-dd HH:mm:ss", new Date()), "d MMM yyyy 'เวลา' HH:mm", { locale: th })}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Last Updated</label>
+                <label className="text-sm font-medium text-gray-500">อัปเดตล่าสุด</label>
                 <p className="text-sm text-gray-900">
-                  {format(parse(request.updatedAt, "yyyy-MM-dd HH:mm:ss", new Date()), "MMM dd, yyyy 'at' HH:mm")}
+                  {format(parse(request.updatedAt, "yyyy-MM-dd HH:mm:ss", new Date()), "d MMM yyyy 'เวลา' HH:mm", { locale: th })}
                 </p>
               </div>
             </div>
@@ -417,31 +429,31 @@ export default function SupervisorRequestDetailsPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <DollarSign className="h-5 w-5" />
-            <span>Calculation Summary</span>
+            <span>สรุปการคำนวณ</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Base Rate</span>
-              <span className="text-sm font-medium">฿{request.baseRate.toLocaleString()}</span>
+              <span className="text-sm text-gray-600">อัตราพื้นฐาน</span>
+              <span className="text-sm font-medium">{formatToThb(request.baseRate)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Number of Days</span>
-              <span className="text-sm font-medium">{calculateDays()} days</span>
+              <span className="text-sm text-gray-600">จำนวนวัน</span>
+              <span className="text-sm font-medium">{calculateDays()} วัน</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Zone Multiplier</span>
+              <span className="text-sm text-gray-600">ตัวคูณโซน</span>
               <span className="text-sm font-medium">{request.zoneMultiplier}x</span>
             </div>
             <Separator />
             <div className="flex justify-between">
-              <span className="text-base font-medium text-gray-900">Total Amount</span>
-              <span className="text-base font-bold text-green-600">฿{request.totalAmount.toLocaleString()}</span>
+              <span className="text-base font-medium text-gray-900">ยอดรวม</span>
+              <span className="text-base font-bold text-green-600">{formatToThb(request.totalAmount)}</span>
             </div>
             <div className="text-xs text-gray-500 mt-2">
-              Calculation: ฿{request.baseRate.toLocaleString()} × {calculateDays()} days × {request.zoneMultiplier} = ฿
-              {request.totalAmount.toLocaleString()}
+              การคำนวณ: {formatToThb(request.baseRate)} × {calculateDays()} วัน × {request.zoneMultiplier} ={" "}
+              {formatToThb(request.totalAmount)}
             </div>
           </div>
         </CardContent>
@@ -452,9 +464,9 @@ export default function SupervisorRequestDetailsPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="h-5 w-5" />
-            <span>Supporting Documents</span>
+            <span>เอกสารประกอบ</span>
           </CardTitle>
-          <CardDescription>Documents uploaded with this request</CardDescription>
+          <CardDescription>เอกสารที่อัปโหลดพร้อมกับคำขอนี้</CardDescription>
         </CardHeader>
         <CardContent>
           <DocumentViewer documents={request.documents} />
@@ -466,15 +478,15 @@ export default function SupervisorRequestDetailsPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Edit className="h-5 w-5" />
-            <span>Supervisor Review</span>
+            <span>การตรวจสอบโดยหัวหน้างาน</span>
           </CardTitle>
-          <CardDescription>Review and provide feedback on this request</CardDescription>
+          <CardDescription>ตรวจสอบและให้ความคิดเห็นเกี่ยวกับคำขอนี้</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Comments</label>
+            <label className="text-sm font-medium text-gray-700">ความคิดเห็น</label>
             <Textarea
-              placeholder="Add your comments or feedback here..."
+              placeholder="เพิ่มความคิดเห็นหรือข้อเสนอแนะของคุณที่นี่..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={4}
@@ -484,10 +496,10 @@ export default function SupervisorRequestDetailsPage() {
           {signatureFile ? (
             <div className="border rounded-md p-4">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium">Your Signature</h4>
+                <h4 className="text-sm font-medium">ลายเซ็นของคุณ</h4>
                 <Button variant="outline" size="sm" onClick={() => setSignatureDialogOpen(true)}>
                   <Edit className="h-4 w-4 mr-2" />
-                  Change
+                  เปลี่ยน
                 </Button>
               </div>
               <img src={signatureFile.url || "/placeholder.svg"} alt="Signature" className="max-h-24 border rounded" />
@@ -495,9 +507,9 @@ export default function SupervisorRequestDetailsPage() {
           ) : (
             <div className="border border-dashed rounded-md p-4 text-center">
               <PenTool className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-600 mb-2">Signature required for approval</p>
+              <p className="text-sm text-gray-600 mb-2">จำเป็นต้องมีลายเซ็นเพื่ออนุมัติ</p>
               <Button variant="outline" onClick={() => setSignatureDialogOpen(true)}>
-                Add Signature
+                เพิ่มลายเซ็น
               </Button>
             </div>
           )}
@@ -510,15 +522,15 @@ export default function SupervisorRequestDetailsPage() {
         </CardContent>
         <CardFooter className="flex justify-end space-x-4">
           <Button variant="outline" onClick={() => router.push("/supervisor/requests")} disabled={submitting}>
-            Cancel
+            ยกเลิก
           </Button>
           <Button variant="destructive" onClick={handleReject} disabled={submitting || comment.trim() === ""}>
             <X className="h-4 w-4 mr-2" />
-            Reject
+            ปฏิเสธ
           </Button>
           <Button variant="default" onClick={handleApprove} disabled={submitting || !signatureFile}>
             <Check className="h-4 w-4 mr-2" />
-            Approve
+            อนุมัติ
           </Button>
         </CardFooter>
       </Card>
@@ -527,17 +539,17 @@ export default function SupervisorRequestDetailsPage() {
         isOpen={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
         onConfirm={handleConfirmAction}
-        title={`Confirm ${actionToConfirm === 'approve' ? 'Approval' : 'Rejection'}`}
-        description={`Are you sure you want to ${actionToConfirm} this request?`}
+        title={`ยืนยัน${actionToConfirm === "approve" ? "การอนุมัติ" : "การปฏิเสธ"}`}
+        description={`คุณแน่ใจหรือไม่ว่าต้องการ${actionToConfirm === "approve" ? "อนุมัติ" : "ปฏิเสธ"}คำขอนี้?`}
       />
 
       {/* Signature Dialog */}
       <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Your Signature</DialogTitle>
+            <DialogTitle>เพิ่มลายเซ็นของคุณ</DialogTitle>
             <DialogDescription>
-              Draw your signature below or import an image. This will be used to verify your approval.
+              วาดลายเซ็นของคุณด้านล่างหรือนำเข้ารูปภาพ ลายเซ็นนี้จะใช้เพื่อยืนยันการอนุมัติของคุณ
             </DialogDescription>
           </DialogHeader>
           <div className="border rounded-md overflow-hidden bg-white">
@@ -564,14 +576,14 @@ export default function SupervisorRequestDetailsPage() {
           />
           <DialogFooter className="flex justify-between sm:justify-between w-full">
             <Button type="button" variant="outline" onClick={triggerSignatureImport} disabled={submitting}>
-              Import File
+              นำเข้าไฟล์
             </Button>
             <div className="flex space-x-2">
               <Button type="button" variant="outline" onClick={clearCanvas} disabled={submitting}>
-                Clear
+                ล้าง
               </Button>
               <Button type="button" onClick={saveSignature} disabled={submitting}>
-                {submitting ? "Saving..." : "Save Signature"}
+                {submitting ? "กำลังบันทึก..." : "บันทึกลายเซ็น"}
               </Button>
             </div>
           </DialogFooter>
