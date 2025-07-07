@@ -37,13 +37,13 @@ export default function LoginPage() {
     if (!/^\d{13}$/.test(nationalId)) {
       // You might want to set a local error state here for this specific validation
       // if you want different messages for different client-side failures
-      console.error("National ID must be exactly 13 digits.");
+      console.error("รหัสประจำตัวประชาชนต้องมี 13 หลักเท่านั้น");
       return;
     }
 
     // You could add client-side password validation here too if needed
     if (!password) {
-      console.error("Password cannot be empty.");
+      console.error("กรุณากรอกรหัสผ่าน");
       // Potentially set an error state or display inline message
       return;
     }
@@ -59,7 +59,7 @@ export default function LoginPage() {
         router.push(destination);
       } else {
         // Handle case where user exists but role is not recognized or missing
-        console.warn(`User with role '${user.role}' logged in. Redirecting to default.`);
+        console.warn(`ผู้ใช้ที่มีบทบาท '${user.role}' เข้าสู่ระบบแล้ว กำลังเปลี่ยนเส้นทางไปหน้าเริ่มต้น`);
         router.push("/"); // Fallback to home page or a generic dashboard
       }
     }
@@ -71,19 +71,19 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">P.T.S. System Login</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">เข้าสู่ระบบ  พ.ต.ส.</CardTitle>
           <CardDescription className="text-center">
-            Enter your National ID and password to access the system
+            กรุณากรอกรหัสประจำตัวประชาชนและรหัสผ่านเพื่อเข้าสู่ระบบ
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="nationalId">National ID</Label>
+              <Label htmlFor="nationalId">รหัสประจำตัวประชาชน</Label>
               <Input
                 id="nationalId"
                 type="text"
-                placeholder="Enter 13-digit National ID"
+                placeholder="กรอกรหัสประจำตัวประชาชน 13 หลัก"
                 value={nationalId}
                 onChange={(e) => {
                   // Allow only digits and limit to 13 characters
@@ -95,16 +95,16 @@ export default function LoginPage() {
                 disabled={loading}
               />
               {nationalId.length > 0 && nationalId.length !== 13 && (
-                <p className="text-sm text-red-600">National ID must be exactly 13 digits.</p>
+                <p className="text-sm text-red-600">รหัสประจำตัวประชาชนต้องมี 13 หลักเท่านั้น</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">รหัสผ่าน</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="กรอกรหัสผ่านของคุณ"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -127,7 +127,7 @@ export default function LoginPage() {
               className="w-full"
               disabled={loading || nationalId.length !== 13 || !password} // Ensure both are valid
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
             </Button>
           </form>
         </CardContent>

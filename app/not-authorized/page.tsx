@@ -11,16 +11,16 @@ export default function NotAuthorizedPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
             <AlertTriangle className="h-6 w-6 text-red-600" />
           </div>
-          <CardTitle className="text-xl font-semibold text-gray-900">Access Denied</CardTitle>
-          <CardDescription>You do not have permission to access this page.</CardDescription>
+          <CardTitle className="text-xl font-semibold text-gray-900">ปฏิเสธการเข้าถึง</CardTitle>
+          <CardDescription>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</CardDescription>
         </CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-sm text-gray-600">
-            Please contact your system administrator if you believe this is an error.
+            โปรดติดต่อผู้ดูแลระบบหากคุณเชื่อว่านี่เป็นข้อผิดพลาด
           </p>
           <div className="space-y-2">
             <Button asChild className="w-full">
-              <Link href="/login">Back to Login</Link>
+              <Link href="/login">กลับไปที่หน้าเข้าสู่ระบบ</Link>
             </Button>
           </div>
         </CardContent>
