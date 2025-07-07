@@ -1,5 +1,5 @@
-import { Database } from "../database"
-import bcrypt from "bcryptjs"
+import { Database } from '@/lib/database'
+import bcrypt from 'bcryptjs'
 import type { User } from "../types"
 
 export class UsersDAL {
@@ -93,8 +93,8 @@ export class UsersDAL {
       email: userData.email,
       password_hash: passwordHash,
       role: userData.role,
-      department: userData.department,
-      position: userData.position,
+      department: userData.department ?? null,
+      position: userData.position ?? null,
       isActive: userData.isActive ?? true,
     }
 
