@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect } from "react"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
 import { useAuthStore } from "@/lib/auth-store"
 import { useDataStore } from "@/lib/data-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,14 +30,14 @@ export default function HrHistoryPage() {
   }, [token, user, fetchRequests, clearData])
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading HR requests...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดคำขอของฝ่ายบุคคล...</div>
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Request History</h1>
-        <p className="text-gray-600">View a complete history of all allowance requests</p>
+        <h1 className="text-2xl font-bold text-gray-900">ประวัติคำขอ</h1>
+        <p className="text-gray-600">ดูประวัติทั้งหมดของคำขอเบิกค่าใช้จ่ายทั้งหมด</p>
       </div>
 
       {error && (
@@ -46,24 +48,24 @@ export default function HrHistoryPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Requests</CardTitle>
-          <CardDescription>A complete log of all allowance requests in the system</CardDescription>
+          <CardTitle>คำขอทั้งหมด</CardTitle>
+          <CardDescription>บันทึกที่สมบูรณ์ของคำขอเบิกค่าใช้จ่ายทั้งหมดในระบบ</CardDescription>
         </CardHeader>
         <CardContent>
           {requests.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No approved requests found</p>
+              <p className="text-gray-500">ไม่พบคำขอที่อนุมัติ</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>พนักงาน</TableHead>
+                  <TableHead>ช่วงเวลา</TableHead>
+                  <TableHead>จำนวนเงิน</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>วันที่ส่ง</TableHead>
+                  <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -71,14 +73,14 @@ export default function HrHistoryPage() {
                   <TableRow key={request.id}>
                     <TableCell>{request.employeeName}</TableCell>
                     <TableCell>
-                      {new Date(request.startDate).toLocaleDateString()} -{" "}
-                      {new Date(request.endDate).toLocaleDateString()}
+                      {format(new Date(request.startDate), "d MMM yy", { locale: th })} -{" "}
+                      {format(new Date(request.endDate), "d MMM yy", { locale: th })}
                     </TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{format(new Date(request.createdAt), "d MMM yyyy", { locale: th })}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/requests/${request.id}`}>

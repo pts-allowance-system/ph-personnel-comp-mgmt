@@ -20,6 +20,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { FileText, Clock, DollarSign, Download, Eye, TrendingUp, Calendar } from "lucide-react"
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { th } from "date-fns/locale"
+import { formatToThb } from "@/lib/currency-utils"
 import type { AllowanceRequest } from "@/lib/types"
 
 interface DashboardStats {
@@ -49,7 +51,7 @@ interface RequestWithApprover extends AllowanceRequest {
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
 
 export default function HrDashboardPage() {
-  const { user, token } = useAuthStore()
+  const { token } = useAuthStore()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [requests, setRequests] = useState<RequestWithApprover[]>([])
@@ -71,7 +73,6 @@ export default function HrDashboardPage() {
   }, [token])
 
   useEffect(() => {
-    // Reset selected statuses when the main filtered requests change
     setSelectedExportStatuses(filteredRequests.map((r) => r.status).filter((v, i, a) => a.indexOf(v) === i))
   }, [requests, selectedDateString])
 
@@ -79,7 +80,6 @@ export default function HrDashboardPage() {
     try {
       setLoading(true)
 
-      // Fetch dashboard statistics
       const statsResponse = await fetch("/api/hr/dashboard/stats", {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -90,7 +90,6 @@ export default function HrDashboardPage() {
         setMonthlyData(statsData.monthlyData)
       }
 
-      // Fetch all requests for detailed view
       const requestsResponse = await fetch("/api/hr/dashboard/requests", {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -100,33 +99,33 @@ export default function HrDashboardPage() {
         setRequests(requestsData.requests)
       }
     } catch (err) {
-      setError("Error loading dashboard data")
+      setError("เกิดข้อผิดพลาดในการโหลดข้อมูลแดชบอร์ด")
       console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleExport = async (format: "csv" | "excel") => {
+  const handleExport = async (formatType: "csv" | "excel") => {
     try {
       setExporting(true)
       const statusQuery = selectedExportStatuses.join(",")
       const response = await fetch(
-        `/api/hr/export?month=${selectedDateString}&format=${format}&statuses=${statusQuery}`,
+        `/api/hr/export?month=${selectedDateString}&format=${formatType}&statuses=${statusQuery}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       )
 
       if (!response.ok) {
-        throw new Error("Export failed")
+        throw new Error("การส่งออกล้มเหลว")
       }
 
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `hr-report-${selectedDateString}.${format === "excel" ? "xlsx" : "csv"}`
+      a.download = `รายงาน HR-${selectedDateString}.${formatType === "excel" ? "xlsx" : "csv"}`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -134,7 +133,7 @@ export default function HrDashboardPage() {
 
       setIsExportDialogOpen(false)
     } catch (err) {
-      setError("Export failed")
+      setError("การส่งออกล้มเหลว")
       console.error(err)
     } finally {
       setExporting(false)
@@ -145,9 +144,9 @@ export default function HrDashboardPage() {
     if (!stats) return []
 
     return [
-      { name: "Pending", value: stats.pendingRequests, color: "#FFBB28" },
-      { name: "Approved", value: stats.approvedRequests, color: "#00C49F" },
-      { name: "Rejected", value: stats.rejectedRequests, color: "#FF8042" },
+      { name: "รอดำเนินการ", value: stats.pendingRequests, color: "#FFBB28" },
+      { name: "อนุมัติ", value: stats.approvedRequests, color: "#00C49F" },
+      { name: "ปฏิเสธ", value: stats.rejectedRequests, color: "#FF8042" },
     ]
   }
 
@@ -166,27 +165,27 @@ export default function HrDashboardPage() {
   const monthlyTotalAmount = filteredRequests.reduce((total, req) => total + req.totalAmount, 0)
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading dashboard...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดแดชบอร์ด...</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
-          <p className="text-gray-600">Overview of allowance requests and system activity</p>
+          <h1 className="text-2xl font-bold text-gray-900">แดชบอร์ดฝ่ายบุคคล</h1>
+          <p className="text-gray-600">ภาพรวมของคำขอเบี้ยเลี้ยงและกิจกรรมในระบบ</p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <Select value={selectedMonthValue} onValueChange={setSelectedMonthValue}>
               <SelectTrigger className="w-36">
-                <SelectValue placeholder="Month" />
+                <SelectValue placeholder="เดือน" />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 12 }, (_, i) => {
                   const month = i + 1
                   const value = month.toString().padStart(2, "0")
-                  const label = format(new Date(2000, i, 1), "MMMM")
+                  const label = format(new Date(2000, i, 1), "MMMM", { locale: th })
                   return (
                     <SelectItem key={value} value={value}>
                       {label}
@@ -197,7 +196,7 @@ export default function HrDashboardPage() {
             </Select>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
               <SelectTrigger className="w-24">
-                <SelectValue placeholder="Year" />
+                <SelectValue placeholder="ปี" />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 5 }, (_, i) => {
@@ -216,19 +215,19 @@ export default function HrDashboardPage() {
             <DialogTrigger asChild>
               <Button>
                 <Download className="h-4 w-4 mr-2" />
-                Export Data
+                ส่งออกข้อมูล
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
               <DialogHeader>
-                <DialogTitle>Export Requests</DialogTitle>
+                <DialogTitle>ส่งออกคำขอ</DialogTitle>
                 <DialogDescription>
-                  Preview and export requests for {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}.
+                  ดูตัวอย่างและส่งออกคำขอสำหรับ {format(new Date(selectedDateString + "-01"), "MMMM yyyy", { locale: th })}.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="p-4 border rounded-md">
-                  <h4 className="font-semibold mb-2">Filter by Status</h4>
+                  <h4 className="font-semibold mb-2">กรองตามสถานะ</h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {availableStatuses.map((status) => (
                       <div key={status} className="flex items-center space-x-2">
@@ -253,25 +252,25 @@ export default function HrDashboardPage() {
                 </div>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Preview</CardTitle>
+                    <CardTitle>ตัวอย่าง</CardTitle>
                     <CardDescription>
-                      Showing {exportPreviewRequests.length} of {filteredRequests.length} requests.
+                      แสดง {exportPreviewRequests.length} จาก {filteredRequests.length} คำขอ
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="max-h-64 overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>พนักงาน</TableHead>
+                          <TableHead>จำนวนเงิน</TableHead>
+                          <TableHead>สถานะ</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {exportPreviewRequests.map((req) => (
                           <TableRow key={req.id}>
                             <TableCell>{req.employeeName}</TableCell>
-                            <TableCell>฿{req.totalAmount.toLocaleString()}</TableCell>
+                            <TableCell>{formatToThb(req.totalAmount)}</TableCell>
                             <TableCell>
                               <StatusBadge status={req.status} />
                             </TableCell>
@@ -295,7 +294,7 @@ export default function HrDashboardPage() {
                   disabled={exporting || exportPreviewRequests.length === 0}
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export Excel
+                  ส่งออกเป็น Excel
                 </Button>
               </div>
             </DialogContent>
@@ -313,36 +312,36 @@ export default function HrDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+            <CardTitle className="text-sm font-medium">คำขอทั้งหมด</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{filteredRequests.length}</div>
             <p className="text-xs text-muted-foreground">
-              In {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}
+              ใน {format(new Date(selectedDateString + "-01"), "MMMM yyyy", { locale: th })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
+            <CardTitle className="text-sm font-medium">รอการตรวจสอบ</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.pendingRequests || 0}</div>
-            <p className="text-xs text-muted-foreground">Awaiting HR review</p>
+            <p className="text-xs text-muted-foreground">รอการตรวจสอบจากฝ่ายบุคคล</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
+            <CardTitle className="text-sm font-medium">ยอดรวมทั้งหมด</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">฿{monthlyTotalAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">For all requests this month</p>
+            <div className="text-2xl font-bold">{formatToThb(monthlyTotalAmount)}</div>
+            <p className="text-xs text-muted-foreground">สำหรับทุกคำขอในเดือนนี้</p>
           </CardContent>
         </Card>
       </div>
@@ -351,8 +350,8 @@ export default function HrDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Trends</CardTitle>
-            <CardDescription>Request volume and amounts over time</CardDescription>
+            <CardTitle>แนวโน้มรายเดือน</CardTitle>
+            <CardDescription>ปริมาณคำขอและจำนวนเงินในช่วงเวลาต่างๆ</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -361,7 +360,7 @@ export default function HrDashboardPage() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="requests" fill="#8884d8" name="Requests" />
+                <Bar dataKey="requests" fill="#8884d8" name="คำขอ" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -369,8 +368,8 @@ export default function HrDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Request Status Distribution</CardTitle>
-            <CardDescription>Current status breakdown</CardDescription>
+            <CardTitle>การกระจายสถานะคำขอ</CardTitle>
+            <CardDescription>รายละเอียดสถานะปัจจุบัน</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -401,36 +400,36 @@ export default function HrDashboardPage() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="h-5 w-5" />
-            <span>Requests for {format(new Date(selectedDateString + "-01"), "MMMM yyyy")}</span>
+            <span>คำขอสำหรับ {format(new Date(selectedDateString + "-01"), "MMMM yyyy", { locale: th })}</span>
           </CardTitle>
           <CardDescription>
-            Detailed view of all requests for the selected month ({filteredRequests.length} requests)
+            มุมมองโดยละเอียดของคำขอทั้งหมดสำหรับเดือนที่เลือก ({filteredRequests.length} คำขอ)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Approved By</TableHead>
-                <TableHead>Processing Time</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead>พนักงาน</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead>จำนวนเงิน</TableHead>
+                <TableHead>สถานะ</TableHead>
+                <TableHead>อนุมัติโดย</TableHead>
+                <TableHead>เวลาดำเนินการ</TableHead>
+                <TableHead>การดำเนินการ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">{request.employeeName}</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>฿{request.totalAmount.toLocaleString()}</TableCell>
+                  <TableCell>แผนก</TableCell>
+                  <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                   <TableCell>
                     <StatusBadge status={request.status} />
                   </TableCell>
                   <TableCell>{request.approverName || "-"}</TableCell>
-                  <TableCell>{request.processingTime ? `${request.processingTime}d` : "-"}</TableCell>
+                  <TableCell>{request.processingTime ? `${request.processingTime} วัน` : "-"}</TableCell>
                   <TableCell>
                     <Dialog>
                       <DialogTrigger asChild>
@@ -440,42 +439,42 @@ export default function HrDashboardPage() {
                       </DialogTrigger>
                       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
-                          <DialogTitle>Request Details - {selectedRequest?.employeeName}</DialogTitle>
-                          <DialogDescription>Complete information for request {selectedRequest?.id}</DialogDescription>
+                          <DialogTitle>รายละเอียดคำขอ - {selectedRequest?.employeeName}</DialogTitle>
+                          <DialogDescription>ข้อมูลฉบับสมบูรณ์สำหรับคำขอ {selectedRequest?.id}</DialogDescription>
                         </DialogHeader>
                         {selectedRequest && (
                           <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <label className="text-sm font-medium text-gray-500">Employee</label>
+                                <label className="text-sm font-medium text-gray-500">พนักงาน</label>
                                 <p className="text-sm">{selectedRequest.employeeName}</p>
                               </div>
                               <div>
-                                <label className="text-sm font-medium text-gray-500">Amount</label>
-                                <p className="text-sm">฿{selectedRequest.totalAmount.toLocaleString()}</p>
+                                <label className="text-sm font-medium text-gray-500">จำนวนเงิน</label>
+                                <p className="text-sm">{formatToThb(selectedRequest.totalAmount)}</p>
                               </div>
                               <div>
-                                <label className="text-sm font-medium text-gray-500">Period</label>
+                                <label className="text-sm font-medium text-gray-500">ช่วงเวลา</label>
                                 <p className="text-sm">
-                                  {format(new Date(selectedRequest.startDate), "MMM dd")} -{" "}
-                                  {format(new Date(selectedRequest.endDate), "MMM dd, yyyy")}
+                                  {format(new Date(selectedRequest.startDate), "d MMM", { locale: th })} -{" "}
+                                  {format(new Date(selectedRequest.endDate), "d MMM yyyy", { locale: th })}
                                 </p>
                               </div>
                               <div>
-                                <label className="text-sm font-medium text-gray-500">Status</label>
+                                <label className="text-sm font-medium text-gray-500">สถานะ</label>
                                 <StatusBadge status={selectedRequest.status} />
                               </div>
                             </div>
 
                             {selectedRequest.comments.length > 0 && (
                               <div>
-                                <label className="text-sm font-medium text-gray-500">Comments History</label>
+                                <label className="text-sm font-medium text-gray-500">ประวัติความคิดเห็น</label>
                                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
                                   {selectedRequest.comments.map((comment) => (
                                     <div key={comment.id} className="border-l-4 border-blue-200 pl-3 py-2">
                                       <div className="flex justify-between text-xs text-gray-500">
                                         <span>{comment.userName}</span>
-                                        <span>{format(new Date(comment.createdAt), "MMM dd, yyyy HH:mm")}</span>
+                                        <span>{format(new Date(comment.createdAt), "d MMM yyyy HH:mm", { locale: th })}</span>
                                       </div>
                                       <p className="text-sm mt-1">{comment.message}</p>
                                     </div>
@@ -485,7 +484,7 @@ export default function HrDashboardPage() {
                             )}
 
                             <div>
-                              <label className="text-sm font-medium text-gray-500">Documents</label>
+                              <label className="text-sm font-medium text-gray-500">เอกสาร</label>
                               <div className="mt-2 grid grid-cols-2 gap-2">
                                 {selectedRequest.documents.map((doc) => (
                                   <div key={doc.id} className="border rounded p-2">
@@ -507,7 +506,7 @@ export default function HrDashboardPage() {
 
           {filteredRequests.length === 0 && (
             <div className="text-center py-8">
-              <p className="text-gray-500">No requests found for the selected month</p>
+              <p className="text-gray-500">ไม่พบคำขอสำหรับเดือนที่เลือก</p>
             </div>
           )}
         </CardContent>
