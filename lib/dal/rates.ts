@@ -4,7 +4,7 @@ import type { Rate } from "../types"
 export class RatesDAL {
   static async findAll(): Promise<Rate[]> {
     const sql = `
-      SELECT id, group_name, tier, base_rate, effective_date, isActive, created_at, updated_at
+      SELECT id, group_name, tier, base_rate, effective_date, isActive
       FROM allowance_rates
       WHERE isActive = true
       ORDER BY group_name, tier, effective_date DESC
@@ -59,6 +59,22 @@ export class RatesDAL {
 
     await Database.insert("allowance_rates", data)
     return id
+  }
+
+  static async findActiveGroupsAndTiers(): Promise<Pick<Rate, 'group' | 'tier'>[]> {
+    const sql = `
+      SELECT DISTINCT group_name, tier
+      FROM allowance_rates
+      WHERE isActive = true
+      ORDER BY group_name, tier
+    `
+
+    const results = await Database.query<any>(sql)
+
+    return results.map((rate) => ({
+      group: rate.group_name,
+      tier: rate.tier,
+    }))
   }
 
   static async update(id: string, updates: Partial<Rate>): Promise<boolean> {

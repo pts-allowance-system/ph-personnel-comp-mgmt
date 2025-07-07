@@ -19,31 +19,54 @@ export interface FileUpload {
   uploadedAt: string
 }
 
+export enum RequestStatus {
+  Draft = "draft",
+  Submitted = "submitted",
+  Processing = "processing",
+  Approved = "approved",
+  Rejected = "rejected",
+}
+
 export interface AllowanceRequest {
   id: string
   employeeId: string
   employeeName: string
-  group: string
-  tier: string
-  startDate: string
-  endDate: string
-  status: "draft" | "submitted" | "approved" | "hr-checked" | "disbursed" | "rejected"
-  baseRate: number
-  zoneMultiplier: number
-  totalAmount: number
+  status: RequestStatus
   documents: FileUpload[]
-  comments: Comment[]
-  createdAt: string
-  updatedAt: string
   notes?: string
+  comments?: Comment[]
+  createdAt?: string
+  updatedAt?: string
+
+  // New form fields
+  employeeType: string
+  requestType: string
+  position: string
+  department: string
+  mainDuties: string
+  standardDuties: {
+    operations: boolean
+    planning: boolean
+    coordination: boolean
+    service: boolean
+  }
+  assignedTask: string
+  monthlyRate: number 
+  totalAmount: number 
+  effectiveDate: string
+  startDate?: string
+  endDate?: string
+  totalDays?: number
+  group?: string
+  tier?: string
 }
 
 export interface Comment {
   id: string
-  userId: string
-  userName: string
-  message: string
-  createdAt: string
+  requestId: string 
+  author: string
+  timestamp: string
+  content: string
 }
 
 export interface Rate {

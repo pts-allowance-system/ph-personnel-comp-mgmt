@@ -9,6 +9,8 @@ interface TokenPayload {
   role: string
   nationalId: string
   name?: string
+  department?: string
+  position?: string
 }
 
 export async function verifyToken(request: NextRequest): Promise<TokenPayload | null> {
@@ -50,6 +52,8 @@ export async function verifyToken(request: NextRequest): Promise<TokenPayload | 
       role: decoded.role,
       nationalId: decoded.nationalId,
       name: user.name,
+      department: user.department,
+      position: user.position,
     }
   } catch (error) {
     console.error("Token verification error:", error)
