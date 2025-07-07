@@ -10,29 +10,29 @@ import { History } from 'lucide-react';
 
 const roleMenus = {
   employee: [
-    { href: "/requests", label: "My Requests", icon: FileText },
-    { href: "/requests/history", label: "My History", icon: History },
+    { href: "/requests", label: "คำขอของฉัน", icon: FileText },
+    { href: "/requests/history", label: "ประวัติของฉัน", icon: History },
   ],
   supervisor: [
-    { href: "/supervisor/requests", label: "Review Requests", icon: UserCheck },
-    { href: "/supervisor/history", label: "Department History", icon: History },
+    { href: "/supervisor/requests", label: "ตรวจสอบคำขอ", icon: UserCheck },
+    { href: "/supervisor/history", label: "ประวัติแผนก", icon: History },
   ],
   hr: [
-    { href: "/hr/dashboard", label: "Dashboard", icon: BarChart3 },
-    { href: "/hr/requests", label: "HR Review", icon: CheckSquare },
-    { href: "/hr/history", label: "Request History", icon: History },
+    { href: "/hr/dashboard", label: "แดชบอร์ด", icon: BarChart3 },
+    { href: "/hr/requests", label: "การตรวจสอบโดยฝ่ายบุคคล", icon: CheckSquare },
+    { href: "/hr/history", label: "ประวัติคำขอ", icon: History },
   ],
   finance: [
-    { href: "/finance/dashboard", label: "Dashboard", icon: BarChart3 },
-    { href: "/finance/requests", label: "Disbursements", icon: CreditCard },
-    { href: "/finance/history", label: "Request History", icon: History },
+    { href: "/finance/dashboard", label: "แดชบอร์ด", icon: BarChart3 },
+    { href: "/finance/requests", label: "การเบิกจ่าย", icon: CreditCard },
+    { href: "/finance/history", label: "ประวัติคำขอ", icon: History },
   ],
   admin: [
-    { href: "/admin/users", label: "Users", icon: Users },
-    { href: "/admin/rates", label: "Rates", icon: DollarSign },
-    { href: "/admin/rules", label: "Rules", icon: Settings },
-    { href: "/admin/logs", label: "Logs", icon: FileText },
-    { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+    { href: "/admin/users", label: "ผู้ใช้งาน", icon: Users },
+    { href: "/admin/rates", label: "อัตรา", icon: DollarSign },
+    { href: "/admin/rules", label: "กฎ", icon: Settings },
+    { href: "/admin/logs", label: "บันทึก", icon: FileText },
+    { href: "/admin/reports", label: "รายงาน", icon: BarChart3 },
   ],
 }
 

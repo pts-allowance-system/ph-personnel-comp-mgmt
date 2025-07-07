@@ -21,8 +21,8 @@ export function Navbar() {
     <nav className="border-b bg-white px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold text-blue-600">P.T.S. System</h1>
-          <span className="text-sm text-gray-500">Allowance Management System</span>
+          <h1 className="text-xl font-bold text-blue-600">ระบบ  พ.ต.ส.</h1>
+          <span className="text-sm text-gray-500">ระบบบริหารจัดการเงิน พ.ต.ส. ผ่านระบบดิจิทัล</span>
         </div>
 
         <div className="flex items-center space-x-4">
