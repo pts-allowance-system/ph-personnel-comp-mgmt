@@ -40,11 +40,11 @@ export default function EditRequestPage() {
         const response = await fetch(`/api/requests/${params.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-        if (!response.ok) throw new Error("Failed to fetch request")
+        if (!response.ok) throw new Error("ไม่สามารถดึงข้อมูลคำขอได้")
         const data = await response.json()
         setFormData(data)
       } catch (err) {
-        setFormError("Failed to load request data.")
+        setFormError("ไม่สามารถโหลดข้อมูลคำขอได้")
       }
     }
     if (params.id && token) {
@@ -56,17 +56,27 @@ export default function EditRequestPage() {
     e.preventDefault()
     setFormError("")
 
-    if (!user) throw new Error("User not found")
+    if (!user) {
+      setFormError("ไม่พบผู้ใช้")
+      return
+    }
     if (!formData.group || !formData.tier || !formData.startDate || !formData.endDate) {
-      throw new Error("Please fill in all required fields")
+      setFormError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน")
+      return
     }
 
     const rate = rates.find((r) => r.group === formData.group && r.tier === formData.tier)
-    if (!rate) throw new Error("Rate not found for selected group and tier")
+    if (!rate) {
+      setFormError("ไม่พบอัตราสำหรับกลุ่มและระดับที่เลือก")
+      return
+    }
 
     const startDate = new Date(formData.startDate)
     const endDate = new Date(formData.endDate)
-    if (endDate <= startDate) throw new Error("End date must be after start date")
+    if (endDate <= startDate) {
+      setFormError("วันที่สิ้นสุดต้องอยู่หลังวันที่เริ่มต้น")
+      return
+    }
 
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
     const zoneMultiplier = 1.2
@@ -94,7 +104,7 @@ export default function EditRequestPage() {
       await updateRequest(params.id as string, updateData, token!)
       router.push(`/requests/${params.id}`)
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to update request")
+      setFormError(err instanceof Error ? err.message : "การอัปเดตคำขอล้มเหลว")
     } finally {
       setIsSubmitting(false)
     }
@@ -103,26 +113,26 @@ export default function EditRequestPage() {
   const groups = [...new Set(rates.map((r) => r.group))]
   const tiers = formData.group ? [...new Set(rates.filter((r) => r.group === formData.group).map((r) => r.tier))] : []
 
-  if (loading || !formData.id) return <div>Loading...</div>
+  if (loading || !formData.id) return <div>กำลังโหลด...</div>
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Edit Allowance Request</CardTitle>
-          <CardDescription>Update the details of your request.</CardDescription>
+          <CardTitle>แก้ไขคำขอรับเงิน พ.ต.ส.</CardTitle>
+          <CardDescription>อัปเดตรายละเอียดคำขอรับเงิน พ.ต.ส. ของคุณด้านล่าง</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="group">Group *</Label>
+                <Label htmlFor="group">กลุ่มอัตรา พ.ต.ส. *</Label>
                 <Select
                   value={formData.group || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, group: value, tier: "" }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select group" />
+                    <SelectValue placeholder="เลือกกลุ่มอัตรา" />
                   </SelectTrigger>
                   <SelectContent>
                     {groups.map((group) => (
@@ -134,14 +144,14 @@ export default function EditRequestPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tier">Tier *</Label>
+                <Label htmlFor="tier">ระดับ (Tier) *</Label>
                 <Select
                   value={formData.tier || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, tier: value }))}
                   disabled={!formData.group}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select tier" />
+                    <SelectValue placeholder="เลือกระดับ (Tier)" />
                   </SelectTrigger>
                   <SelectContent>
                     {tiers.map((tier) => (
@@ -157,16 +167,16 @@ export default function EditRequestPage() {
             {formData.group && formData.tier && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-800">
-                  <strong>Base Rate:</strong>
+                  <strong>อัตราค่าตอบแทน:</strong>
                   {formatToThb(rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate)}
-                  per day
+                  ต่อวัน
                 </p>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date *</Label>
+                <Label htmlFor="startDate">วันที่เริ่มต้น *</Label>
                 <Input
                   id="startDate"
                   type="date"
@@ -176,7 +186,7 @@ export default function EditRequestPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date *</Label>
+                <Label htmlFor="endDate">วันที่สิ้นสุด *</Label>
                 <Input
                   id="endDate"
                   type="date"
@@ -188,7 +198,7 @@ export default function EditRequestPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Supporting Documents</Label>
+              <Label>เอกสารประกอบ (เช่น ใบอนุญาตประกอบวิชาชีพ)</Label>
               <FileUploadComponent
                 files={formData.documents || []}
                 onFilesChange={(files) => setFormData((prev) => ({ ...prev, documents: files }))}
@@ -198,10 +208,10 @@ export default function EditRequestPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Label htmlFor="notes">หมายเหตุ (ถ้ามี)</Label>
               <Textarea
                 id="notes"
-                placeholder="Additional notes or comments"
+                placeholder="หมายเหตุหรือความคิดเห็นเพิ่มเติม"
                 value={formData.notes || ""}
                 onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
               />
@@ -220,7 +230,7 @@ export default function EditRequestPage() {
                 onClick={() => router.back()}
                 disabled={isSubmitting}
               >
-                Cancel
+                ยกเลิก
               </Button>
               <Button
                 type="button"
@@ -228,10 +238,10 @@ export default function EditRequestPage() {
                 onClick={(e) => handleSubmit(e, true)}
                 disabled={isSubmitting}
               >
-                Save as Draft
+                บันทึกเป็นฉบับร่าง
               </Button>
               <Button type="submit" disabled={isSubmitting || !formData.group || !formData.tier}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
+                {isSubmitting ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
               </Button>
             </div>
           </form>
@@ -241,8 +251,8 @@ export default function EditRequestPage() {
         isOpen={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
         onConfirm={handleConfirmUpdate}
-        title="Confirm Changes"
-        description="Are you sure you want to save these changes?"
+        title="ยืนยันการแก้ไขข้อมูล"
+        description="คุณต้องการบันทึกการเปลี่ยนแปลงข้อมูลคำขอรับเงิน พ.ต.ส. ใช่หรือไม่?"
       />
     </div>
   )

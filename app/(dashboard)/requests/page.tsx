@@ -12,6 +12,8 @@ import { Plus, Eye, Edit } from "lucide-react"
 import Link from "next/link"
 
 import { formatToThb } from "@/lib/currency-utils"
+import { formatDateToThai } from "@/lib/date-utils"
+import { RequestStatus } from "@/lib/types"
 
 
 
@@ -22,7 +24,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     if (token && user) {
-      fetchRequests(token, user.id)
+      fetchRequests(token, { userId: user.id })
     }
 
     // Cleanup on unmount
@@ -32,20 +34,20 @@ export default function RequestsPage() {
   }, [token, user, fetchRequests, clearData])
 
   if (loading) {
-    return <div className="flex justify-center p-8">Loading requests...</div>
+    return <div className="flex justify-center p-8">กำลังโหลดคำขอรับเงิน พ.ต.ส....</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
-          <p className="text-gray-600">Manage your allowance requests</p>
+          <h1 className="text-2xl font-bold text-gray-900">คำขอรับเงิน พ.ต.ส.</h1>
+          <p className="text-gray-600">จัดการคำขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษ (พ.ต.ส.)</p>
         </div>
         <Button asChild>
           <Link href="/requests/new">
             <Plus className="h-4 w-4 mr-2" />
-            New Request
+            สร้างคำขอ พ.ต.ส. ใหม่
           </Link>
         </Button>
       </div>
@@ -58,35 +60,34 @@ export default function RequestsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Request History</CardTitle>
-          <CardDescription>View and manage all your allowance requests</CardDescription>
+          <CardTitle>ประวัติคำขอรับเงิน พ.ต.ส.</CardTitle>
+          <CardDescription>ดูและจัดการคำขอรับเงิน พ.ต.ส. ทั้งหมดของคุณ</CardDescription>
         </CardHeader>
         <CardContent>
           {requests.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">No requests found</p>
+              <p className="text-gray-500 mb-4">ไม่พบคำขอรับเงิน พ.ต.ส.</p>
               <Button asChild>
-                <Link href="/requests/new">Create your first request</Link>
+                <Link href="/requests/new">สร้างคำขอรับเงิน พ.ต.ส. แรกของคุณ</Link>
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Group/Tier</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>ช่วงเวลา</TableHead>
+                  <TableHead>กลุ่มอัตรา พ.ต.ส.</TableHead>
+                  <TableHead>จำนวนเงิน</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>วันที่สร้าง</TableHead>
+                  <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
-                      {new Date(request.startDate).toLocaleDateString()} -{" "}
-                      {new Date(request.endDate).toLocaleDateString()}
+                      {`${formatDateToThai(request.startDate)} - ${formatDateToThai(request.endDate)}`}
                     </TableCell>
                     <TableCell>
                       {request.group} / {request.tier}
@@ -95,7 +96,7 @@ export default function RequestsPage() {
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDateToThai(request.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm" asChild>
@@ -103,7 +104,7 @@ export default function RequestsPage() {
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
-                        {request.status === "draft" && (
+                        {request.status === RequestStatus.Draft && (
                           <Button variant="ghost" size="sm" asChild>
                             <Link href={`/requests/${request.id}/edit`}>
                               <Edit className="h-4 w-4" />

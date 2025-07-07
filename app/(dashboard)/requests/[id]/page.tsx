@@ -1,244 +1,279 @@
 "use client"
 
-import React from "react"
+import type React from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDataStore } from "@/lib/data-store"
 import { useAuthStore } from "@/lib/auth-store"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatusBadge } from "@/components/status-badge"
-import { DocumentViewer } from "@/components/document-viewer"
-import { Separator } from "@/components/ui/separator"
-import { DollarSign, FileText, User, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProgressTracker } from "@/components/progress-tracker"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import type { AllowanceRequest, Comment } from "@/lib/types"
+import { formatToThb } from "@/lib/currency-utils"
+import { calculateTotalDays } from "@/lib/date-utils"
+import { Separator } from "@/components/ui/separator"
+import { FileText, MessageSquare, User, Calendar, Info, Edit, Check, XCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-import { formatToThb } from "@/lib/currency-utils";
+const statusSteps = [
+  { id: "draft", name: "ฉบับร่าง" },
+  { id: "submitted", name: "ยื่นแล้ว" },
+  { id: "processing", name: "กำลังตรวจสอบ" },
+  { id: "approved", name: "อนุมัติแล้ว" },
+  { id: "rejected", name: "ปฏิเสธ" },
+]
+
+// Maps status to a Badge variant and className for styling
+const getStatusAppearance = (status: string): { variant: "default" | "destructive" | "secondary" | "outline", className: string, name: string } => {
+  const step = statusSteps.find(s => s.id === status) || { name: 'ไม่ทราบสถานะ' };
+  switch (status) {
+    case "approved":
+      return { variant: "default", className: "bg-green-100 text-green-800 border-green-200", name: step.name }
+    case "rejected":
+      return { variant: "destructive", className: "", name: step.name }
+    case "processing":
+      return { variant: "default", className: "bg-yellow-100 text-yellow-800 border-yellow-200", name: step.name }
+    case "draft":
+        return { variant: "secondary", className: "", name: step.name }
+    default:
+      return { variant: "default", className: "", name: step.name }
+  }
+}
+
+// Mappers for new form data
+const employeeTypeMap: { [key: string]: string } = {
+  civil_servant: "ข้าราชการ",
+  gov_employee: "พนักงานราชการ",
+  moph_employee: "พนักงานกระทรวงสาธารณสุข",
+  temp_employee: "ลูกจ้างชั่วคราว",
+}
+
+const requestTypeMap: { [key: string]: string } = {
+  new: "กรณีบรรจุใหม่หรือตรวจสอบสิทธิครั้งแรก",
+  edit_no_rate_change: "กรณีแก้ไขข้อมูลโดยไม่เปลี่ยนอัตราเงิน พ.ต.ส.",
+  edit_rate_change: "กรณีแก้ไขข้อมูลสิทธิโดยเปลี่ยนอัตราเงิน พ.ต.ส.",
+}
+
+const standardDutiesMap: { [key: string]: string } = {
+    operations: "ด้านปฏิบัติการ",
+    planning: "ด้านการวางแผน",
+    coordination: "ด้านการประสานงาน",
+    service: "ด้านการบริการ",
+}
 
 export default function RequestDetailsPage() {
-  const params = useParams()
+  const { id } = useParams()
   const router = useRouter()
-  const { requests, updateRequest } = useDataStore()
-  const { token } = useAuthStore()
-  const [loading, setLoading] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [error, setError] = React.useState("")
-  const [fetchedRequest, setFetchedRequest] = React.useState<any>(null)
-  let request = requests.find((r) => r.id === params.id) || fetchedRequest
+  const { token, user } = useAuthStore()
+  const { requests, fetchRequestById, addComment, loading, error } = useDataStore()
+  const [request, setRequest] = useState<AllowanceRequest | null>(null)
+  const [newComment, setNewComment] = useState("")
 
-  React.useEffect(() => {
-    // If params.id is "true", it's likely a filter, not an ID.
-    // Prevent the fetch for "true" to avoid the 404 from the API.
-    if (params.id === "true") {
-      setFetchedRequest(null); // Ensure it shows "Request not found"
-      setLoading(false);
-      return;
-    }
-
-    if (!request && params.id) {
-      setLoading(true)
-      fetch(`/api/requests/${params.id}`)
-        .then(res => res.ok ? res.json() : Promise.reject(res))
-        .then(data => setFetchedRequest(data))
-        .catch(() => setFetchedRequest(null))
-        .finally(() => setLoading(false))
-    }
-  }, [params.id, request])
-
-  const handleSubmitForApproval = async () => {
-    if (!request || !token) return
-
-    setIsSubmitting(true)
-    setError("")
-
-    try {
-      const success = await updateRequest(request.id, { status: "submitted" }, token)
-      if (success) {
-        // Re-fetch or update local state to reflect the change
-        const updatedRequest = { ...request, status: "submitted" }
-        setFetchedRequest(updatedRequest) // Update local state immediately
-        // Optionally, you could re-fetch all requests or just this one
+  useEffect(() => {
+    const requestId = Array.isArray(id) ? id[0] : id
+    if (token && requestId) {
+      const existingRequest = requests.find((r) => r.id === requestId)
+      if (existingRequest) {
+        setRequest(existingRequest)
       } else {
-        throw new Error("Failed to submit for approval.")
+        fetchRequestById(requestId, token).then(fetchedRequest => {
+          if(fetchedRequest) setRequest(fetchedRequest)
+        })
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred.")
-    } finally {
-      setIsSubmitting(false)
     }
+  }, [id, token, requests, fetchRequestById])
+
+  useEffect(() => {
+    const requestId = Array.isArray(id) ? id[0] : id
+    const updatedRequest = requests.find((r) => r.id === requestId)
+    if (updatedRequest) {
+      setRequest(updatedRequest)
+    }
+  }, [requests, id])
+
+  const handleAddComment = async () => {
+    const requestId = Array.isArray(id) ? id[0] : id
+    if (!newComment.trim() || !user || !requestId) return
+    
+    await addComment(requestId, { content: newComment.trim() }, token!)
+    
+    // Refetch to get the latest comments
+    fetchRequestById(requestId, token!).then(fetchedRequest => {
+      if(fetchedRequest) setRequest(fetchedRequest)
+    })
+    setNewComment("")
   }
 
-  if (loading) {
-    return <div className="text-center py-8"><p className="text-gray-500">Loading request...</p></div>
-  }
+  if (loading && !request) return <div className="p-6">กำลังโหลดข้อมูลคำขอ...</div>
+  if (error) return (
+    <Alert variant="destructive" className="m-6">
+      <XCircle className="h-4 w-4" />
+      <AlertTitle>เกิดข้อผิดพลาด</AlertTitle>
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  )
+  if (!request) return <div className="p-6">ไม่พบข้อมูลคำขอ</div>
 
-  if (!request) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">Request not found</p>
-      </div>
-    )
-  }
-
-  const calculateDays = () => {
-    const start = new Date(request.startDate)
-    const end = new Date(request.endDate)
-    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-  }
+  const currentStatusIndex = statusSteps.findIndex((step) => step.id === request.status)
+  const statusAppearance = getStatusAppearance(request.status)
+  const currentStepIndex = statusSteps.findIndex(s => s.id === request.status)
+  const totalDays = calculateTotalDays(request.startDate || "", request.endDate || "")
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {request && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Request Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProgressTracker currentStatus={request.status} />
-          </CardContent>
-        </Card>
-      )}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Request Details</h1>
-          <p className="text-gray-600">Request ID: {request.id}</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <StatusBadge status={request.status} />
-          {request.status === "draft" && (
-            <Button onClick={handleSubmitForApproval} disabled={isSubmitting}>
-              <Send className="mr-2 h-4 w-4" />
-              {isSubmitting ? "Submitting..." : "Submit for Approval"}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Request Information */}
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <User className="h-5 w-5" />
-            <span>Request Information</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Employee</label>
-                <p className="text-sm text-gray-900">{request.employeeName}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Group / Tier</label>
-                <p className="text-sm text-gray-900">
-                  {request.group} / {request.tier}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Period</label>
-                <p className="text-sm text-gray-900">
-                  {new Date(request.startDate).toLocaleDateString()} -{" "}
-                  {new Date(request.endDate).toLocaleDateString()}
-                </p>
-              </div>
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <CardTitle className="text-xl md:text-2xl">รายละเอียดคำขอรับเงิน พ.ต.ส. #{request.id.substring(0, 8)}</CardTitle>
+              <CardDescription>
+                ยื่นโดย {request.employeeName} เมื่อ {format(new Date(request.createdAt), "d MMMM yyyy", { locale: th })}
+              </CardDescription>
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Status</label>
-                <div className="mt-1">
-                  <StatusBadge status={request.status} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Created</label>
-                <p className="text-sm text-gray-900">
-                  {new Date(request.createdAt).toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Last Updated</label>
-                <p className="text-sm text-gray-900">
-                  {new Date(request.updatedAt).toLocaleString()}
-                </p>
-              </div>
+            <div className="flex flex-col items-end gap-2">
+                <Badge variant={statusAppearance.variant} className={`${statusAppearance.className} text-sm`}>
+                    {statusAppearance.name}
+                </Badge>
+                {request.status === 'draft' || request.status === 'rejected' && (
+                    <Button size="sm" variant="outline" onClick={() => router.push(`/requests/${request.id}/edit`)}>
+                        <Edit className="mr-2 h-4 w-4" /> แก้ไข
+                    </Button>
+                )}
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <section>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">สถานะการดำเนินการ</h3>
+            <ProgressTracker items={statusSteps} currentStepIndex={currentStepIndex} />
+          </section>
         </CardContent>
       </Card>
-
-      {/* Calculation Summary */}
+      
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <span>Calculation Summary</span>
-          </CardTitle>
+            <CardTitle className="flex items-center"><Info className="mr-2 h-5 w-5" />ข้อมูลคำขอ</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Base Rate</span>
-              <span className="text-sm font-medium">{formatToThb(request.baseRate)}</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6">
+                <div>
+                    <h4 className="font-semibold text-gray-700">ประเภทบุคลากร</h4>
+                    <p>{employeeTypeMap[request.employeeType] || 'N/A'}</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-700">ประเภทคำขอ</h4>
+                    <p>{requestTypeMap[request.requestType] || 'N/A'}</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-700">ระยะเวลาที่ขอ</h4>
+                    <p>{totalDays > 0 ? `${totalDays} วัน` : "N/A"}</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-700">วันที่เริ่มมีผล</h4>
+                    <p>{format(new Date(request.effectiveDate), "d MMM yyyy", { locale: th })}</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-700">ตำแหน่ง</h4>
+                    <p>{request.position}</p>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-700">หน่วยงาน</h4>
+                    <p>{request.department}</p>
+                    <span className="text-gray-600">วันที่มีผล</span>
+                    <span className="font-medium">{format(new Date(request.effectiveDate), "d MMMM yyyy", { locale: th })}</span>
+                </div>
+                <div className="md:col-span-2 pt-2">
+                    <h4 className="font-semibold mb-2 text-gray-700">ภาระหน้าที่หลัก</h4>
+                    <p className="p-3 bg-gray-50 rounded-md border">{request.mainDuties}</p>
+                </div>
+                <div className="md:col-span-2">
+                    <h4 className="font-semibold mb-2 text-gray-700">งานที่ได้รับมอบหมายตามมาตรฐาน</h4>
+                    <ul className="list-inside list-none space-y-1">
+                        {Object.entries(request.standardDuties).map(([key, value]) => value && (
+                            <li key={key} className="flex items-center"><Check className="h-4 w-4 mr-2 text-green-500" />{standardDutiesMap[key]}</li>
+                        ))}
+                    </ul>
+                </div>
+                 {request.assignedTask && (
+                    <div className="md:col-span-2">
+                        <h4 className="font-semibold mb-2 text-gray-700">งานอื่นๆ ที่ได้รับมอบหมาย</h4>
+                        <p className="p-3 bg-gray-50 rounded-md border">{request.assignedTask}</p>
+                    </div>
+                )}
+                {request.notes && (
+                    <div className="md:col-span-2">
+                        <h4 className="font-semibold mb-2 text-gray-700">หมายเหตุ</h4>
+                        <p className="p-3 bg-gray-50 rounded-md border">{request.notes}</p>
+                    </div>
+                )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Number of Days</span>
-              <span className="text-sm font-medium">{calculateDays()} days</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Zone Multiplier</span>
-              <span className="text-sm font-medium">{request.zoneMultiplier}x</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between">
-              <span className="text-base font-medium text-gray-900">Total Amount</span>
-              <span className="text-base font-bold text-green-600">{formatToThb(request.totalAmount)}</span>
-            </div>
-            <div className="text-xs text-gray-500 mt-2">
-              Calculation: {formatToThb(request.baseRate)} × {calculateDays()} days × {request.zoneMultiplier} = {formatToThb(request.totalAmount)}
-            </div>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Documents */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <FileText className="h-5 w-5" />
-            <span>Supporting Documents</span>
-          </CardTitle>
-          <CardDescription>Documents uploaded with this request</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DocumentViewer documents={request.documents} />
-        </CardContent>
-      </Card>
-
-      {/* Comments History */}
-      {request.comments.length > 0 && (
+      {request.documents && request.documents.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Comments & History</CardTitle>
-            <CardDescription>Communication history for this request</CardDescription>
+            <CardTitle className="flex items-center"><FileText className="h-5 w-5 mr-2" />เอกสารแนบ</CardTitle>
+            <CardDescription>เอกสารที่แนบมาพร้อมกับคำขอ</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {/* Define a basic type for comment based on usage */}
-              {request.comments.map((comment: { id: string; userName: string; createdAt: string | Date; message: string }) => (
-                <div key={comment.id} className="border-l-4 border-blue-200 pl-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">{comment.userName}</span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-700">{comment.message}</p>
-                </div>
+            <ul className="space-y-2">
+              {request.documents.map((doc, index) => (
+                <li key={index}>
+                  <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    {doc.name}
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center"><MessageSquare className="h-5 w-5 mr-2" />ประวัติการดำเนินการและอนุมัติ</CardTitle>
+          <CardDescription>ประวัติการสื่อสารและการดำเนินการเกี่ยวกับคำขอนี้</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {request.comments && request.comments.length > 0 ? (
+              request.comments.map((comment) => (
+                <div key={comment.id} className="flex items-start space-x-3">
+                  <User className="h-5 w-5 text-gray-500 mt-1" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{comment.author}</span>
+                      <span className="text-xs text-gray-500">
+                        {format(new Date(comment.timestamp), "d MMM yyyy, HH:mm", { locale: th })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 bg-gray-100 p-2 rounded-md mt-1">{comment.content}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">ยังไม่มีความคิดเห็น</p>
+            )}
+          </div>
+          <Separator className="my-4" />
+          <div className="space-y-2">
+            <h4 className="font-medium">เพิ่มความคิดเห็น</h4>
+            <Textarea 
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="แสดงความคิดเห็นของคุณที่นี่..."
+            />
+            <Button onClick={handleAddComment} disabled={!newComment.trim() || loading}>
+              ส่งความคิดเห็น
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

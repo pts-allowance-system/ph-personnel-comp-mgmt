@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 import { RequestsDAL } from "@/lib/dal/requests"
 import { verifyToken } from "@/lib/auth-utils"
+import cache from "@/lib/cache"
 
 export async function GET(
   request: NextRequest,
@@ -23,6 +24,14 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const cacheKey = `request:${requestIdFromParams}`;
+    const cachedRequest = cache.get(cacheKey);
+    if (cachedRequest) {
+      console.log(`[Cache] HIT for key: ${cacheKey}`);
+      return NextResponse.json(cachedRequest);
+    }
+    console.log(`[Cache] MISS for key: ${cacheKey}`);
+
     const requestData = await RequestsDAL.findById(requestIdFromParams)
     console.log("[API_ROUTE_DEBUG] Raw requestData from DAL:", JSON.stringify(requestData, null, 2));
 
@@ -34,6 +43,8 @@ export async function GET(
     if (user.role === "employee" && requestData.employeeId !== user.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
+
+    cache.set(cacheKey, requestData);
 
     return NextResponse.json(requestData)
   } catch (error) {
@@ -68,6 +79,16 @@ export async function PATCH(
     if (!success) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
+
+    // Invalidate caches
+    const individualCacheKey = `request:${requestIdFromParams}`;
+    cache.del(individualCacheKey);
+
+    const listCacheKeys = cache.keys().filter(k => k.startsWith('requests:'));
+    if (listCacheKeys.length > 0) {
+      cache.del(listCacheKeys);
+    }
+    console.log(`[Cache] Invalidated cache for ${individualCacheKey} and all 'requests:*' lists.`);
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
 import { RatesDAL } from "@/lib/dal/rates"
 import { verifyToken } from "@/lib/auth-utils"
+import cache from "@/lib/cache"
+import { AllowanceRequest } from "@/lib/types"
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,17 +17,23 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("userId")
     const department = searchParams.get("department")
 
-    console.log(`API: Received request for user role: ${user.role}, userId: ${userId}, department: ${department}, fetchAll: ${fetchAll}`);
+    // Construct a dynamic cache key
+    const cacheKey = `requests:role=${user.role}:userId=${userId || 'none'}:dept=${department || 'none'}:fetchAll=${fetchAll}`;
+
+    const cachedRequests = cache.get<{ requests: any[] }>(cacheKey);
+    if (cachedRequests) {
+      console.log(`API: Cache hit for key: ${cacheKey}`);
+      return NextResponse.json(cachedRequests);
+    }
+
+    console.log(`API: Cache miss for key: ${cacheKey}. Fetching from DB.`);
 
     let requests
     if (department) {
-      console.log(`API: Fetching requests for department: ${department}`);
       requests = await RequestsDAL.findByDepartment(department)
     } else if (userId) {
-      console.log(`API: Fetching requests for userId: ${userId}, fetchAll: ${fetchAll}`);
       requests = await RequestsDAL.findByUserId(userId, fetchAll)
     } else if (user.role === "employee") {
-      console.log(`API: Fetching requests for employee: ${user.userId}, fetchAll: ${fetchAll}`);
       requests = await RequestsDAL.findByUserId(user.userId, fetchAll)
     } else {
       const statusMap = {
@@ -34,18 +42,17 @@ export async function GET(request: NextRequest) {
         finance: "hr-checked",
       }
       if (fetchAll) {
-        console.log(`API: Fetching all requests for role: ${user.role}`);
         requests = await RequestsDAL.findAllWithDetails();
       } else {
         const roleStatus = statusMap[user.role as keyof typeof statusMap];
-        console.log(`API: Fetching requests for role: ${user.role} with status: ${roleStatus}`);
         requests = roleStatus ? await RequestsDAL.findByStatus(roleStatus) : [];
       }
     }
 
-    console.log(`API: Found ${requests.length} requests.`);
+    const response = { requests };
+    cache.set(cacheKey, response);
 
-    return NextResponse.json({ requests })
+    return NextResponse.json(response)
   } catch (error) {
     console.error("Get requests error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -98,7 +105,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to calculate total amount due to invalid inputs" }, { status: 400 });
     }
 
-    const newRequest = {
+    const newRequest: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt"> = {
       employeeId: user.userId,
       employeeName: user.name || "Unknown",
       group: requestData.group,
@@ -106,21 +113,36 @@ export async function POST(request: NextRequest) {
       startDate: requestData.startDate,
       endDate: requestData.endDate,
       status: requestData.status || "draft",
-      baseRate: rate.baseRate,
-      zoneMultiplier,
       totalAmount,
       documents: requestData.documents || [],
-      comments: [],
       notes: requestData.notes || null,
-    }
+      // Fields to fix the type error
+      department: user.department || "",
+      position: user.position || "",
+      employeeType: requestData.employeeType || "",
+      requestType: requestData.requestType || "",
+      mainDuties: requestData.mainDuties || "",
+      standardDuties: requestData.standardDuties || { operations: false, planning: false, coordination: false, service: false },
+      assignedTask: requestData.assignedTask || "",
+      monthlyRate: rate.baseRate, // Assuming baseRate from rates is the monthlyRate
+      effectiveDate: rate.effectiveDate, // Assuming effectiveDate from rates
+    };
 
-    const requestId = await RequestsDAL.create(newRequest)
+    const requestId = await RequestsDAL.create(newRequest);
     const createdRequest = await RequestsDAL.findById(requestId) // Fetch the full request
 
     if (!createdRequest) {
       // This case should ideally not happen if create was successful
       console.error(`Failed to fetch newly created request with id: ${requestId}`);
       return NextResponse.json({ error: "Failed to retrieve created request" }, { status: 500 });
+    }
+
+    // Invalidate cache
+    const keys = cache.keys();
+    const requestKeys = keys.filter(key => key.startsWith("requests:"));
+    if (requestKeys.length > 0) {
+      cache.del(requestKeys);
+      console.log(`Cache invalidated for keys: ${requestKeys.join(', ')}`);
     }
 
     return NextResponse.json({
