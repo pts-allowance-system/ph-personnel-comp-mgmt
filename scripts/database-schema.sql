@@ -26,6 +26,17 @@ CREATE TABLE allowance_rates (
     UNIQUE KEY unique_group_tier_date (group_name, tier, effective_date)
 );
 
+-- Allowance rules table
+CREATE TABLE allowance_rules (
+    id CHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    conditions LONGTEXT NOT NULL,
+    isActive BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Allowance requests table
 CREATE TABLE allowance_requests (
     id CHAR(36) PRIMARY KEY,
