@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,8 +10,8 @@ import { Eye } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { th } from "date-fns/locale"
-import { formatToThb } from "@/lib/currency-utils"
-import type { AllowanceRequest } from "@/lib/types"
+import { formatToThb } from "@/lib/utils/currency-utils"
+import type { AllowanceRequest } from "@/lib/models"
 
 export default function SupervisorRequestsPage() {
   const { user, token } = useAuthStore()
@@ -77,9 +77,9 @@ export default function SupervisorRequestsPage() {
                 <TableRow>
                   <TableHead>พนักงาน</TableHead>
                   <TableHead>กลุ่ม/ระดับ</TableHead>
-                  <TableHead>ช่วงเวลา</TableHead>
                   <TableHead>จำนวนเงิน</TableHead>
                   <TableHead>สถานะ</TableHead>
+                  <TableHead>วันที่ยื่นเรื่อง</TableHead>
                   <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
@@ -88,16 +88,13 @@ export default function SupervisorRequestsPage() {
                   <TableRow key={request.id}>
                     <TableCell className="font-medium">{request.employeeName}</TableCell>
                     <TableCell>
-                      {request.group} / {request.tier}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(request.startDate), "d MMM", { locale: th })} -{" "}
-                      {format(new Date(request.endDate), "d MMM yyyy", { locale: th })}
+                      {request.allowanceGroup} / {request.tier}
                     </TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
+                    <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/supervisor/requests/${request.id}`}>

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -21,8 +21,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { FileText, Clock, DollarSign, Download, Eye, TrendingUp, Calendar } from "lucide-react"
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { th } from "date-fns/locale"
-import { formatToThb } from "@/lib/currency-utils"
-import type { AllowanceRequest } from "@/lib/types"
+import { formatToThb } from "@/lib/utils/currency-utils"
+import type { AllowanceRequest } from "@/lib/models"
 
 interface DashboardStats {
   totalRequests: number
@@ -66,17 +66,8 @@ export default function HrDashboardPage() {
 
   const selectedDateString = `${selectedYear}-${selectedMonthValue}`
 
-  useEffect(() => {
-    if (token) {
-      fetchDashboardData()
-    }
-  }, [token])
-
-  useEffect(() => {
-    setSelectedExportStatuses(filteredRequests.map((r) => r.status).filter((v, i, a) => a.indexOf(v) === i))
-  }, [requests, selectedDateString])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    if (!token) return
     try {
       setLoading(true)
 
@@ -104,7 +95,26 @@ export default function HrDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
+  const filteredRequests = useMemo(() => {
+    const selectedMonthStart = startOfMonth(new Date(selectedDateString))
+    const selectedMonthEnd = endOfMonth(new Date(selectedDateString))
+
+    return requests.filter((request) => {
+      if (!request.createdAt) return false
+      const requestDate = new Date(request.createdAt)
+      return requestDate >= selectedMonthStart && requestDate <= selectedMonthEnd
+    })
+  }, [requests, selectedDateString])
+
+  useEffect(() => {
+    setSelectedExportStatuses(filteredRequests.map((r) => r.status).filter((v, i, a) => a.indexOf(v) === i))
+  }, [filteredRequests])
 
   const handleExport = async (formatType: "csv" | "excel") => {
     try {
@@ -149,12 +159,6 @@ export default function HrDashboardPage() {
       { name: "ปฏิเสธ", value: stats.rejectedRequests, color: "#FF8042" },
     ]
   }
-
-  const filteredRequests = requests.filter((request) => {
-    const requestDate = new Date(request.createdAt)
-    const selectedDate = new Date(selectedDateString + "-01")
-    return requestDate >= startOfMonth(selectedDate) && requestDate <= endOfMonth(selectedDate)
-  })
 
   const exportPreviewRequests = filteredRequests.filter((req) =>
     selectedExportStatuses.includes(req.status)
@@ -451,13 +455,12 @@ export default function HrDashboardPage() {
                               </div>
                               <div>
                                 <label className="text-sm font-medium text-gray-500">จำนวนเงิน</label>
-                                <p className="text-sm">{formatToThb(selectedRequest.totalAmount)}</p>
+                                <p className="text-sm text-gray-900">{selectedRequest.createdAt ? format(new Date(selectedRequest.createdAt), "PPP") : "N/A"}</p>
                               </div>
                               <div>
                                 <label className="text-sm font-medium text-gray-500">ช่วงเวลา</label>
-                                <p className="text-sm">
-                                  {format(new Date(selectedRequest.startDate), "d MMM", { locale: th })} -{" "}
-                                  {format(new Date(selectedRequest.endDate), "d MMM yyyy", { locale: th })}
+                                <p className="text-sm text-gray-900">
+                                  {selectedRequest.startDate ? format(new Date(selectedRequest.startDate), "PPP") : "N/A"} - {selectedRequest.endDate ? format(new Date(selectedRequest.endDate), "PPP") : "N/A"}
                                 </p>
                               </div>
                               <div>
@@ -466,33 +469,34 @@ export default function HrDashboardPage() {
                               </div>
                             </div>
 
-                            {selectedRequest.comments.length > 0 && (
+                            {selectedRequest.comments && selectedRequest.comments.length > 0 ? (
                               <div>
                                 <label className="text-sm font-medium text-gray-500">ประวัติความคิดเห็น</label>
                                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
                                   {selectedRequest.comments.map((comment) => (
                                     <div key={comment.id} className="border-l-4 border-blue-200 pl-3 py-2">
                                       <div className="flex justify-between text-xs text-gray-500">
-                                        <span>{comment.userName}</span>
-                                        <span>{format(new Date(comment.createdAt), "d MMM yyyy HH:mm", { locale: th })}</span>
+                                        <span>{comment.user.name}</span>
+                                        <span>{format(new Date(comment.timestamp), "d MMM yyyy HH:mm", { locale: th })}</span>
                                       </div>
-                                      <p className="text-sm mt-1">{comment.message}</p>
+                                      <p className="text-sm mt-1">{comment.content}</p>
                                     </div>
                                   ))}
                                 </div>
                               </div>
-                            )}
+                            ) : null}
 
-                            <div>
-                              <label className="text-sm font-medium text-gray-500">เอกสาร</label>
-                              <div className="mt-2 grid grid-cols-2 gap-2">
-                                {selectedRequest.documents.map((doc) => (
-                                  <div key={doc.id} className="border rounded p-2">
-                                    <p className="text-sm font-medium truncate">{doc.name}</p>
-                                    <p className="text-xs text-gray-500">{(doc.size / 1024).toFixed(1)} KB</p>
-                                  </div>
+                            <div className="mt-4">
+                              <h4 className="font-medium text-gray-800">ประวัติการแสดงความคิดเห็น</h4>
+                              <ul className="mt-2 space-y-3">
+                                {selectedRequest.comments?.map((comment, index) => (
+                                  <li key={index} className="rounded-lg bg-gray-50 p-3">
+                                    <p className="text-sm font-medium text-gray-700">{comment.user.name}</p>
+                                    <p className="text-xs text-gray-500">{format(new Date(comment.timestamp), "PPp")}</p>
+                                    <p className="mt-1 text-sm text-gray-800">{comment.content}</p>
+                                  </li>
                                 ))}
-                              </div>
+                              </ul>
                             </div>
                           </div>
                         )}

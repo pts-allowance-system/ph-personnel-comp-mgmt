@@ -1,10 +1,10 @@
 // lib/auth-store.ts
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
-import type { User } from "./types" // Ensure your User type is correctly defined here
+import { persist, createJSONStorage } from "zustand/middleware"
+import type { User } from "../models" // Ensure your User type is correctly defined here
 
 // Define the shape of your authentication state
-interface AuthState {
+export interface AuthState {
   user: User | null
   token: string | null
   isAuthenticated: boolean
@@ -84,6 +84,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // **CRITICAL: Purge the persisted state from localStorage.**
+        // This is necessary to clear out old, corrupted user objects.
+        localStorage.removeItem("auth-storage");
+
         // Clear cookie if you're managing it client-side.
         // For HttpOnly cookies, this isn't strictly necessary as the backend
         // should handle session invalidation or cookie expiry.
@@ -101,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "auth-storage",
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,

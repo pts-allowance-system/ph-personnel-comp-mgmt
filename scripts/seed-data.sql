@@ -1,36 +1,86 @@
--- Insert demo users (passwords hashed for 'password123')
-INSERT INTO users (id, national_id, name, email, password_hash, role, department, position, created_at)
-VALUES
-('1', '1234567890123', 'John Employee', 'john@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'Nursing', 'Staff Nurse', NOW()),
-('2', '1234567890124', 'Jane Supervisor', 'jane@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'supervisor', 'Nursing', 'Head Nurse', NOW()),
-('3', '1234567890125', 'Bob HR', 'bob@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'hr', 'Human Resources', 'HR Manager', NOW()),
-('4', '1234567890126', 'Alice Finance', 'alice@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'finance', 'Finance', 'Finance Officer', NOW()),
-('5', '1234567890127', 'Admin User', 'admin@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'admin', 'IT', 'System Administrator', NOW());
+-- =================================================================
+-- Clean up existing data to prevent duplicate entry errors
+-- =================================================================
+-- Disable foreign key checks to allow for table truncation in any order
+SET FOREIGN_KEY_CHECKS = 0;
 
--- Insert allowance rates
+TRUNCATE TABLE allowance_requests;
+TRUNCATE TABLE request_documents;
+TRUNCATE TABLE request_comments;
+TRUNCATE TABLE system_rules;
+TRUNCATE TABLE allowance_rates;
+TRUNCATE TABLE users;
+TRUNCATE TABLE audit_logs;
+
+-- Re-enable foreign key checks
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- =================================================================
+-- Users (บุคลากร)
+-- Password for all users is 'password123'
+-- =================================================================
+INSERT INTO users (id, national_id, firstName, lastName, email, password_hash, role, department, position, certifications, specialTasks, hasSpecialOrder, isActive, created_at)
+VALUES
+-- 1. Nurse, Tier 1 (OPD)
+('1', '1102003344551', 'สมชาย', 'ใจดี', 'somchai.jd@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'แผนกผู้ป่วยนอก', 'พยาบาลวิชาชีพ', NULL, NULL, FALSE, TRUE, NOW()),
+-- 2. Nurse, Tier 3 (ICU) + Supervisor
+('2', '1102003344552', 'สมหญิง', 'เก่งมาก', 'somyhing.km@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'supervisor', 'แผนกผู้ป่วยหนัก', 'พยาบาลวิชาชีพ', '["APN"]', NULL, FALSE, TRUE, NOW()),
+-- 3. HR
+('3', '1102003344553', 'บดินทร์', 'มีคุณ', 'bodin.mk@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'hr', 'ฝ่ายทรัพยากรบุคคล', 'ผู้จัดการฝ่ายบุคคล', NULL, NULL, FALSE, TRUE, NOW()),
+-- 4. Doctor, Tier 2 (Has certificate)
+('4', '1102003344554', 'นพ. อาทิตย์', 'เชี่ยวชาญ', 'arthit.c@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'แผนกอายุรกรรม', 'นายแพทย์', '["วุฒิบัตรสาขาอายุรศาสตร์"]', NULL, FALSE, TRUE, NOW()),
+-- 5. Admin
+('5', '1102003344555', 'แอดมิน', 'ระบบ', 'admin@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'admin', 'ฝ่ายเทคโนโลยีสารสนเทศ', 'ผู้ดูแลระบบ', NULL, NULL, FALSE, TRUE, NOW()),
+-- 6. Pharmacist, Tier 2 (Chemo prep)
+('6', '1102003344556', 'ภญ. จันทรา', 'ปรุงยา', 'chantra.p@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'กลุ่มงานเภสัชกรรม', 'เภสัชกร', NULL, '["การเตรียมยาหรือวิเคราะห์ยาเคมีบำบัด"]', FALSE, TRUE, NOW()),
+-- 7. Dentist, Tier 1 (Base rate)
+('7', '1102003344557', 'ทพญ. วิมล', 'ยิ้มสวย', 'vimol.ys@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'กลุ่มงานทันตกรรม', 'ทันตแพทย์', NULL, NULL, FALSE, TRUE, NOW()),
+-- 8. Allied Health, Tier 1
+('8', '1102003344558', 'เทคนิค', 'แล็บดี', 'technic.ld@example.com', '$2a$10$HWJXsBb3xHLZZAmU6AwLC.pn.AYFvx9HjwAk.3uf/Sj8egukOc/ZS', 'employee', 'กลุ่มงานเทคนิคการแพทย์', 'นักเทคนิคการแพทย์', NULL, NULL, FALSE, TRUE, NOW());
+
+-- =================================================================
+-- Allowance Rates (อัตราค่าตอบแทน พ.ต.ส.)
+-- =================================================================
 INSERT INTO allowance_rates (id, group_name, tier, base_rate, effective_date, created_at)
 VALUES
-('rate1', 'Nursing', 'Level 1', 500.00, '2024-01-01', NOW()),
-('rate2', 'Nursing', 'Level 2', 750.00, '2024-01-01', NOW()),
-('rate3', 'Nursing', 'Level 3', 1000.00, '2024-01-01', NOW()),
-('rate4', 'Medical', 'Level 1', 600.00, '2024-01-01', NOW()),
-('rate5', 'Medical', 'Level 2', 900.00, '2024-01-01', NOW()),
-('rate6', 'Medical', 'Level 3', 1200.00, '2024-01-01', NOW()),
-('rate7', 'Technical', 'Level 1', 400.00, '2024-01-01', NOW()),
-('rate8', 'Technical', 'Level 2', 600.00, '2024-01-01', NOW()),
-('rate9', 'Technical', 'Level 3', 800.00, '2024-01-01', NOW()),
-('rate10', 'Administrative', 'Level 1', 350.00, '2024-01-01', NOW()),
-('rate11', 'Administrative', 'Level 2', 500.00, '2024-01-01', NOW()),
-('rate12', 'Administrative', 'Level 3', 650.00, '2024-01-01', NOW());
+-- แพทย์
+('rate-doc-1', 'แพทย์', '1', 5000.00, '2024-01-01', NOW()),
+('rate-doc-2', 'แพทย์', '2', 10000.00, '2024-01-01', NOW()),
+('rate-doc-3', 'แพทย์', '3', 15000.00, '2024-01-01', NOW()),
+-- ทันตแพทย์
+('rate-den-1', 'ทันตแพทย์', '1', 5000.00, '2024-01-01', NOW()),
+('rate-den-2', 'ทันตแพทย์', '2', 10000.00, '2024-01-01', NOW()),
+('rate-den-3', 'ทันตแพทย์', '3', 15000.00, '2024-01-01', NOW()),
+-- เภสัชกร
+('rate-pha-1', 'เภสัชกร', '1', 3000.00, '2024-01-01', NOW()),
+('rate-pha-2', 'เภสัชกร', '2', 5000.00, '2024-01-01', NOW()),
+-- พยาบาลวิชาชีพ
+('rate-nur-1', 'พยาบาลวิชาชีพ', '1', 1500.00, '2024-01-01', NOW()),
+('rate-nur-2', 'พยาบาลวิชาชีพ', '2', 2500.00, '2024-01-01', NOW()),
+('rate-nur-3', 'พยาบาลวิชาชีพ', '3', 3000.00, '2024-01-01', NOW()),
+-- สหวิชาชีพ
+('rate-all-1', 'สหวิชาชีพ', '1', 1500.00, '2024-01-01', NOW());
 
--- Insert system rules
+-- =================================================================
+-- System Rules (กฎและระเบียบของระบบ)
+-- =================================================================
 INSERT INTO system_rules (id, name, description, conditions, created_at)
 VALUES
-('rule1', 'Maximum Monthly Allowance', 'Limits the maximum allowance per month', 
+('rule1', 'วงเงินค่าตอบแทนสูงสุดต่อเดือน', 'กำหนดเพดานเงิน พ.ต.ส. สูงสุดต่อเดือน', 
 '{"max_amount": 50000, "period": "monthly"}', NOW()),
-('rule2', 'Minimum Service Period', 'Requires minimum service period for eligibility', 
+('rule2', 'ระยะเวลาปฏิบัติงานขั้นต่ำ', 'กำหนดระยะเวลาการทำงานขั้นต่ำเพื่อรับสิทธิ์', 
 '{"min_months": 6, "type": "service_period"}', NOW()),
-('rule3', 'Document Requirements', 'Required documents for each request type', 
-'{"required_docs": ["license", "id_card"], "optional_docs": ["certificate"]}', NOW()),
-('rule4', 'Approval Hierarchy', 'Defines the approval workflow', 
+('rule3', 'ข้อกำหนดเอกสารแนบ', 'เอกสารที่ต้องใช้ในการเบิกแต่ละประเภท', 
+'{"required_docs": ["ใบอนุญาตประกอบวิชาชีพ", "บัตรประชาชน"], "optional_docs": ["ใบรับรองการฝึกอบรม"]}', NOW()),
+('rule4', 'ลำดับขั้นการอนุมัติ', 'กำหนดขั้นตอนและสายการอนุมัติคำขอ', 
 '{"steps": ["supervisor", "hr", "finance"], "required": true}', NOW());
+
+-- =================================================================
+-- Sample Allowance Requests (ตัวอย่างคำขอเบิก พ.ต.ส.)
+-- =================================================================
+INSERT INTO allowance_requests (id, employee_id, status, employee_type, request_type, position, department, main_duties, standard_duties, assigned_task, monthly_rate, total_amount, effective_date, start_date, end_date, total_days, allowance_group, tier, notes, created_at, updated_at)
+VALUES 
+('req001', '2', 'pending_supervisor', 'ข้าราชการพลเรือน', 'ปฏิบัติงานในพื้นที่พิเศษ', 'พยาบาลวิชาชีพ', 'แผนกผู้ป่วยหนัก', 'ดูแลผู้ป่วยในหอผู้ป่วยหนัก (ICU)', '{"operations": true, "coordination": true, "service": true, "planning": false}', 'เวรบ่าย-ดึก ICU', 3000.00, 3000.00, '2024-07-01', '2024-07-01', '2024-07-31', 31, 'พยาบาลวิชาชีพ', '3', 'คำขอเบิกสำหรับเวร ICU เดือนกรกฎาคม', NOW(), NOW()),
+('req002', '4', 'approved', 'ข้าราชการพลเรือน', 'ภาระงานเฉพาะทาง', 'นายแพทย์', 'แผนกอายุรกรรม', 'ปฏิบัติงานคลินิกเฉพาะทางโรคหัวใจ', '{"operations": true, "service": true, "planning": true, "coordination": false}', 'คลินิกเฉพาะทาง', 10000.00, 4838.71, '2024-06-01', '2024-06-15', '2024-06-30', 15, 'แพทย์', '2', 'เบิกค่าตอบแทนสำหรับคลินิกเฉพาะทาง', NOW(), NOW());
+

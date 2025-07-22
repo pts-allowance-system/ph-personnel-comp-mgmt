@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { LogOut } from "lucide-react"
@@ -29,14 +29,11 @@ export function Navbar() {
           <div className="flex items-center space-x-2">
             <Avatar className="h-8 w-8">
               <AvatarFallback>
-                {user.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
+                {`${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`}
               </AvatarFallback>
             </Avatar>
             <div className="text-sm">
-              <div className="font-medium">{user.name}</div>
+              <div className="font-medium">{`${user.firstName} ${user.lastName}`}</div>
               <div className="text-gray-500 capitalize">{user.role}</div>
             </div>
           </div>

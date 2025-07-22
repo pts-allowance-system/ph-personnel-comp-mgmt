@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,8 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DollarSign, FileText, User, Check, X, ClipboardCheck, AlertTriangle } from "lucide-react"
 import { format } from "date-fns"
 import { th } from "date-fns/locale"
-import { formatToThb } from "@/lib/currency-utils"
-import type { AllowanceRequest } from "@/lib/types"
+import { formatToThb } from "@/lib/utils/currency-utils"
+import type { AllowanceRequest } from "@/lib/models"
 
 export default function HrRequestDetailsPage() {
   const params = useParams()
@@ -145,8 +145,10 @@ export default function HrRequestDetailsPage() {
   }
 
   const calculateDays = () => {
+    if (!request?.startDate || !request?.endDate) return 0
     const start = new Date(request.startDate)
     const end = new Date(request.endDate)
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
   }
 
@@ -172,19 +174,19 @@ export default function HrRequestDetailsPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-500">พนักงาน</label>
-                <p className="text-sm text-gray-900">{request.employeeName}</p>
+                <p className="font-mono text-sm text-gray-900">{request.employeeName}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">กลุ่ม / ระดับ</label>
                 <p className="text-sm text-gray-900">
-                  {request.group} / {request.tier}
+                  {request.allowanceGroup} / {request.tier}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">ช่วงเวลา</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.startDate), "d MMM yyyy", { locale: th })} -{" "}
-                  {format(new Date(request.endDate), "d MMM yyyy", { locale: th })}
+                  {request.startDate ? format(new Date(request.startDate), "d MMM yyyy", { locale: th }) : "N/A"} -{" "}
+                  {request.endDate ? format(new Date(request.endDate), "d MMM yyyy", { locale: th }) : "N/A"}
                 </p>
               </div>
             </div>
@@ -198,13 +200,13 @@ export default function HrRequestDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-500">สร้างเมื่อ</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.createdAt), "d MMM yyyy 'เวลา' HH:mm", { locale: th })}
+                  {request.createdAt ? format(new Date(request.createdAt), "d MMM yyyy 'เวลา' HH:mm", { locale: th }) : "N/A"}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">อัปเดตล่าสุด</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.updatedAt), "d MMM yyyy 'เวลา' HH:mm", { locale: th })}
+                  {request.updatedAt ? format(new Date(request.updatedAt), "d MMM yyyy 'เวลา' HH:mm", { locale: th }) : "N/A"}
                 </p>
               </div>
             </div>
@@ -223,15 +225,11 @@ export default function HrRequestDetailsPage() {
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">อัตราพื้นฐาน</span>
-              <span className="text-sm font-medium">{formatToThb(request.baseRate)}</span>
+              <span className="text-sm font-medium">{formatToThb(request.monthlyRate)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">จำนวนวัน</span>
               <span className="text-sm font-medium">{calculateDays()} วัน</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">ตัวคูณโซน</span>
-              <span className="text-sm font-medium">{request.zoneMultiplier}x</span>
             </div>
             <Separator />
             <div className="flex justify-between">

@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { User } from "@/lib/types"
+import type { User } from "@/lib/models"
 
 export default function EditUserPage() {
   const router = useRouter()
@@ -18,7 +18,8 @@ export default function EditUserPage() {
   const { token } = useAuthStore()
 
   const [user, setUser] = useState<User | null>(null)
-  const [name, setName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [nationalId, setNationalId] = useState("")
   const [role, setRole] = useState("")
@@ -37,7 +38,8 @@ export default function EditUserPage() {
           if (!response.ok) throw new Error("Failed to fetch user")
           const data = await response.json()
           setUser(data.user)
-          setName(data.user.name)
+          setFirstName(data.user.firstName)
+          setLastName(data.user.lastName)
           setEmail(data.user.email)
           setNationalId(data.user.nationalId)
           setRole(data.user.role)
@@ -63,7 +65,7 @@ export default function EditUserPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name, email, nationalId, role, department, isActive }),
+        body: JSON.stringify({ firstName, lastName, email, nationalId, role, department, isActive }),
       })
 
       if (!response.ok) {
@@ -93,14 +95,18 @@ export default function EditUserPage() {
       <Card>
         <CardHeader>
           <CardTitle>User Information</CardTitle>
-          <CardDescription>Edit the details for {user.name}</CardDescription>
+          <CardDescription>Edit the details for {user.firstName} {user.lastName}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>

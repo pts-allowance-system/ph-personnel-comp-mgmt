@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 interface StatusBadgeProps {
   status: string
@@ -9,6 +9,7 @@ interface StatusBadgeProps {
 const statusConfig = {
   draft: { label: "Draft", variant: "secondary" as const },
   submitted: { label: "Submitted", variant: "default" as const },
+  pending: { label: "Pending", variant: "default" as const },
   approved: { label: "Approved", variant: "default" as const },
   "hr-checked": { label: "HR Checked", variant: "default" as const },
   disbursed: { label: "Disbursed", variant: "default" as const },

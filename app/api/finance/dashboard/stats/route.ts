@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Database } from "@/lib/database"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 import { subMonths, format } from "date-fns"
 
 export async function GET(request: NextRequest) {

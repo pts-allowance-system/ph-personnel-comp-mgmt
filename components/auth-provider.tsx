@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 // Correctly import the single source of truth for the auth store
-import { useAuthStore } from '../lib/auth-store';
+import { useAuthStore } from '@/lib/store/auth-store';
 
 // Props for the AuthProvider
 interface AuthProviderProps {
@@ -11,29 +11,37 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const { setAuthErrorCallback } = useAuthStore();
+  const { setAuthErrorCallback, isAuthenticated } = useAuthStore();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
 
+  // This effect runs once on mount to indicate we are on the client.
   useEffect(() => {
-    const handleAuthError = () => {
-      console.log("Authentication error occurred, handled by AuthProvider. Redirecting to login.");
-      // When an auth error is triggered (e.g., from a failed API call),
-      // we can log the user out and redirect them.
-      useAuthStore.getState().logout();
-      router.push('/login');
-    };
+    setIsMounted(true);
+  }, []);
 
-    // Register the global error handler with the store.
+  // This callback is now stable and will not cause re-renders.
+  const handleAuthError = useCallback(() => {
+    console.log("Authentication error occurred, handled by AuthProvider. Redirecting to login.");
+    useAuthStore.getState().logout();
+    router.push('/login');
+  }, [router]);
+
+  // Register the global error handler with the store, only once.
+  useEffect(() => {
     setAuthErrorCallback(handleAuthError);
 
-    // Cleanup: remove the callback when the provider unmounts.
     return () => {
-      setAuthErrorCallback(() => {});
+      setAuthErrorCallback(() => {}); // Cleanup on unmount
     };
-  }, [setAuthErrorCallback, router]);
+  }, [setAuthErrorCallback, handleAuthError]);
 
-  // This component's purpose is to wrap the application and provide
-  // the global auth error handling logic. It renders its children.
+  // Until the component is mounted, we don't know if the user is authenticated.
+  // We can show a loader or null.
+  if (!isMounted) {
+    return null;
+  }
+
   return <>{children}</>;
 };
 

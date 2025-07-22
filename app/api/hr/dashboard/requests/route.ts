@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {

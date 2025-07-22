@@ -1,47 +1,51 @@
 import { Database } from "../database"
-import type { Rate } from "../types"
+import type { Rate } from "../models"
 
 export class RatesDAL {
   static async findAll(): Promise<Rate[]> {
     const sql = `
-      SELECT id, group_name, tier, base_rate, effective_date, isActive
+      SELECT 
+        id, 
+        \`group_name\` AS allowanceGroup, 
+        tier, 
+        base_rate AS monthlyRate, 
+        effective_date AS effectiveDate, 
+        isActive
       FROM allowance_rates
       WHERE isActive = true
-      ORDER BY group_name, tier, effective_date DESC
+      ORDER BY allowanceGroup, tier, effectiveDate DESC
     `
 
     const rates = await Database.query<any>(sql)
 
     return rates.map((rate) => ({
-      id: rate.id,
-      group: rate.group_name,
-      tier: rate.tier,
-      baseRate: Number.parseFloat(rate.base_rate),
-      effectiveDate: rate.effective_date,
-      isActive: rate.isActive,
+      ...rate,
+      monthlyRate: Number.parseFloat(rate.monthlyRate),
     }))
   }
 
-  static async findByGroupAndTier(group: string, tier: string): Promise<Rate | null> {
+  static async findByGroupAndTier(allowanceGroup: string, tier: string): Promise<Rate | null> {
     const sql = `
-      SELECT id, group_name, tier, base_rate, effective_date, isActive
+      SELECT 
+        id, 
+        \`group_name\` AS allowanceGroup, 
+        tier, 
+        base_rate AS monthlyRate, 
+        effective_date AS effectiveDate, 
+        isActive
       FROM allowance_rates
-      WHERE group_name = ? AND tier = ? AND isActive = true
-      ORDER BY effective_date DESC
+      WHERE \`group_name\` = ? AND tier = ? AND isActive = true
+      ORDER BY effectiveDate DESC
       LIMIT 1
     `
 
-    const rate = await Database.queryOne<any>(sql, [group, tier])
+    const rate = await Database.queryOne<any>(sql, [allowanceGroup, tier])
 
     if (!rate) return null
 
     return {
-      id: rate.id,
-      group: rate.group_name,
-      tier: rate.tier,
-      baseRate: Number.parseFloat(rate.base_rate),
-      effectiveDate: rate.effective_date,
-      isActive: rate.isActive,
+      ...rate,
+      monthlyRate: Number.parseFloat(rate.monthlyRate),
     }
   }
 
@@ -50,9 +54,9 @@ export class RatesDAL {
 
     const data = {
       id,
-      group_name: rateData.group,
+      group_name: rateData.allowanceGroup,
       tier: rateData.tier,
-      base_rate: rateData.baseRate,
+      base_rate: rateData.monthlyRate,
       effective_date: rateData.effectiveDate,
       isActive: rateData.isActive ?? true,
     }
@@ -61,30 +65,48 @@ export class RatesDAL {
     return id
   }
 
-  static async findActiveGroupsAndTiers(): Promise<Pick<Rate, 'group' | 'tier'>[]> {
+  static async findActiveGroupsAndTiers(): Promise<Pick<Rate, 'allowanceGroup' | 'tier' | 'monthlyRate'>[]> {
     const sql = `
-      SELECT DISTINCT group_name, tier
-      FROM allowance_rates
-      WHERE isActive = true
-      ORDER BY group_name, tier
+      WITH RankedRates AS (
+        SELECT
+            group_name AS allowanceGroup,
+            tier,
+            base_rate AS monthlyRate,
+            ROW_NUMBER() OVER(PARTITION BY group_name, tier ORDER BY effective_date DESC) as rn
+        FROM
+            allowance_rates
+        WHERE
+            isActive = true
+      )
+      SELECT
+          allowanceGroup,
+          tier,
+          monthlyRate
+      FROM
+          RankedRates
+      WHERE
+          rn = 1
+      ORDER BY
+          allowanceGroup,
+          tier;
     `
-
-    const results = await Database.query<any>(sql)
-
-    return results.map((rate) => ({
-      group: rate.group_name,
-      tier: rate.tier,
-    }))
+    const rates = await Database.query<any>(sql);
+    return rates.map((rate) => ({
+      ...rate,
+      monthlyRate: Number.parseFloat(rate.monthlyRate),
+    }));
   }
 
   static async update(id: string, updates: Partial<Rate>): Promise<boolean> {
     const data: Record<string, any> = {}
 
-    if (updates.group) data.group_name = updates.group
+    if (updates.allowanceGroup) data.group_name = updates.allowanceGroup
     if (updates.tier) data.tier = updates.tier
-    if (updates.baseRate) data.base_rate = updates.baseRate
+    if (updates.monthlyRate) data.base_rate = updates.monthlyRate
     if (updates.effectiveDate) data.effective_date = updates.effectiveDate
     if (updates.isActive !== undefined) data.isActive = updates.isActive
+
+    if (Object.keys(data).length === 0) return false
 
     return await Database.update("allowance_rates", data, { id })
   }

@@ -1,370 +1,317 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
+
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { useAuthStore } from "@/lib/store/auth-store";
+import { useDataStore } from "@/lib/store/data-store";
+import { useUserProfile } from "@/hooks/use-user-profile"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { AllowanceRequest, Rate, UserProfile } from "@/lib/models"
+import { RequestForm } from "@/components/requests/request-form"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { FileUploadComponent } from "@/components/file-upload"
-import { type FileUpload, type AllowanceRequest, RequestStatus } from "@/lib/types"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Edit } from "lucide-react"
+import { z } from "zod"
+import { api } from "@/lib/utils/storage";
+
+// Infer the form schema type from RequestForm's schema
+// This schema should reflect the fields expected by the RequestForm component
+// and what the API will ultimately receive.
+const formSchema = z.object({
+  // Personal Info (mostly for display, can be updated via onUpdateProfile)
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  nationalId: z.string().optional(),
+  position: z.string().optional(),
+  positionId: z.string().optional(),
+  department: z.string().optional(),
+  licenseNumber: z.string().optional(),
+
+  // Core Allowance Request fields
+  employeeType: z.string().min(1),
+  requestType: z.string().min(1),
+  allowanceGroup: z.string().min(1),
+  tier: z.string().min(1),
+  monthlyRate: z.number(),
+  totalAmount: z.number().optional(), // Added to match the API requirements
+  effectiveDate: z.string().min(1),
+  mainDuties: z.string().min(1),
+  standardDuties: z.object({
+    operations: z.boolean().optional(),
+    planning: z.boolean().optional(),
+    coordination: z.boolean().optional(),
+    service: z.boolean().optional(),
+  }).optional(),
+  certificate: z.string().optional(),
+  documents: z.array(z.any()).optional(),
+  specialTasks: z.array(z.string()).optional(), // Kept from original, might be part of profile
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function NewRequestPage() {
-  const { user, token } = useAuthStore()
-  const { addRequest } = useDataStore()
+  const { user, token, isAuthenticated } = useAuthStore();
+  const addRequest = useDataStore(state => state.addRequest);
   const router = useRouter()
+  const { profile, isLoading, error } = useUserProfile()
+  
+  // Check authentication status on component mount
+  useEffect(() => {
+    // Get the fresh authentication state
+    const { isAuthenticated, token } = useAuthStore.getState();
+    if (!isAuthenticated || !token) {
+      // Redirect to login if not authenticated
+      console.log("Not authenticated, redirecting to login");
+      router.replace("/login?redirect=/requests/new");
+    }
+  }, [router]);
 
-  const [formData, setFormData] = useState({
-    employeeType: "",
-    requestType: "",
-    position: "",
-    department: "",
-    mainDuties: "",
-    standardDuties: {
-      operations: false,
-      planning: false,
-      coordination: false,
-      service: false,
-    },
-    assignedTask: "",
-    monthlyRate: "",
-    effectiveDate: "",
-    documents: [] as FileUpload[],
-    notes: "",
-    group: "",
-    tier: "",
-  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState("")
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
-  const [requestData, setRequestData] = useState<Partial<AllowanceRequest> | null>(null)
-  const [allowanceRates, setAllowanceRates] = useState<{ group: string; tier: string }[]>([])
+  const [requestData, setRequestData] = useState<Partial<FormValues> | null>(null)
+  const [isSubmittingAsDraft, setIsSubmittingAsDraft] = useState(false);
+
+  const [allowanceRates, setAllowanceRates] = useState<Pick<Rate, 'allowanceGroup' | 'tier' | 'monthlyRate'>[]>([])
   const [isEditingInfo, setIsEditingInfo] = useState(false)
 
-  useEffect(() => {
-    const fetchAllowanceRates = async () => {
-      try {
-        const response = await fetch('/api/rates?distinct=true');
-        if (response.ok) {
-          const data = await response.json();
-          setAllowanceRates(data);
-        } else {
-          console.error("Failed to fetch allowance rates");
-        }
-      } catch (error) {
-        console.error("Error fetching allowance rates:", error);
-      }
+  // DEBUG: Log the profile data to check if calculated fields are present
+  // console.log("Profile data received in page:", profile);
+
+  const initialDataForForm = useMemo(() => {
+    // Ensure all fields have a default value (e.g., '' or null) to prevent
+    // uncontrolled-to-controlled input errors.
+    const defaults = {
+      firstName: '',
+      lastName: '',
+      nationalId: '',
+      positionId: '',
+      position: '',
+      department: '',
+      licenseNumber: '',
+      employeeType: '',
+      requestType: '',
+      allowanceGroup: '',
+      tier: '',
+      monthlyRate: 0,
+      effectiveDate: '',
+      mainDuties: '',
+      standardDuties: {
+        operations: false,
+        planning: false,
+        coordination: false,
+        service: false,
+      },
+      certificate: '',
+      documents: [],
+      specialTasks: [],
     };
 
-    fetchAllowanceRates();
-  }, []);
+    if (!profile) return defaults;
+
+    return {
+      ...defaults,
+      ...profile,
+      position: profile.position ?? '',
+      department: profile.department ?? '', // Ensure null is converted to empty string
+      nationalId: profile.nationalId ?? '',
+      positionId: profile.positionId ?? '',
+      licenseNumber: profile.licenseNumber ?? '',
+      allowanceGroup: profile.allowanceGroup ?? '',
+      tier: profile.tier ?? '',
+      specialTasks: profile.specialTasks ?? [],
+    };
+  }, [profile]);
 
   useEffect(() => {
-    if (user && token) {
-      const fetchUserProfile = async () => {
-        try {
-          const response = await fetch(`/api/users/${user.id}/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (response.ok) {
-            const profile = await response.json();
-            setFormData(prev => ({
-              ...prev,
-              position: profile.position || "",
-              department: profile.department || "",
-            }));
-          } else {
-            console.error("Failed to fetch user profile");
-          }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
+    const fetchRates = async () => {
+      try {
+        const ratesResponse = await fetch("/api/rates?distinct=true")
+        if (ratesResponse.ok) {
+          const ratesData = await ratesResponse.json()
+          setAllowanceRates(ratesData)
+        } else {
+          console.error("Failed to fetch allowance rates")
         }
-      };
-
-      fetchUserProfile();
+      } catch (error) {
+        console.error("Error fetching rates:", error)
+      }
     }
-  }, [user, token]);
 
-  const handleSubmit = async (e: React.FormEvent, isDraft = false) => {
-    e.preventDefault()
-    setFormError("")
+    fetchRates()
+  }, [])
 
-    if (!user) {
-      setFormError("ไม่พบผู้ใช้ กรุณาเข้าสู่ระบบอีกครั้ง")
+  const handleUpdateProfile = async (data: Partial<UserProfile>) => {
+    if (!user || !token) {
+      setFormError("Authentication error. Please log in again.")
       return
     }
-
-    if (!formData.employeeType || !formData.requestType || !formData.position || !formData.effectiveDate || !formData.monthlyRate) {
-      setFormError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ประเภทบุคลากร, ประเภทคำขอ, ตำแหน่ง, วันที่มีผล, อัตราเงินเดือน)")
-      return
-    }
-
-    const newRequestData: Partial<AllowanceRequest> = {
-      ...formData,
-      employeeId: user.id,
-      employeeName: user.name,
-      monthlyRate: parseFloat(formData.monthlyRate) || 0,
-      totalAmount: parseFloat(formData.monthlyRate) || 0,
-      status: isDraft ? RequestStatus.Draft : RequestStatus.Submitted,
-    }
-
-    setRequestData(newRequestData)
-    setIsConfirmOpen(true)
-  }
-
-  const handleConfirmSubmit = async () => {
-    if (!requestData) return
 
     setIsSubmitting(true)
+    setFormError("")
+
     try {
-      const createdRequest = await addRequest(requestData, token!)
-      if (createdRequest) {
-        router.push(`/requests/${createdRequest.id}`)
-      } else {
-        throw new Error("ไม่สามารถสร้างคำขอได้ กรุณาลองอีกครั้ง")
+      const response = await fetch(`/api/users/${user.id}/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update profile.")
       }
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดที่ไม่คาดคิด")
+      // Ideally, you would re-fetch the profile data here or have the useUserProfile hook handle it.
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      setFormError((error as Error).message)
     } finally {
       setIsSubmitting(false)
+      setIsEditingInfo(false)
     }
   }
 
-  const handleStandardDutyChange = (duty: keyof typeof formData.standardDuties, checked: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      standardDuties: {
-        ...prev.standardDuties,
-        [duty]: checked,
-      },
-    }))
+  const onSubmit = (values: FormValues, isDraft: boolean) => {
+    setFormError("")
+    setRequestData(values)
+    setIsSubmittingAsDraft(isDraft);
+    setIsConfirmOpen(true)
+    // Always set totalAmount equal to monthlyRate if not explicitly set
+    const dataToSubmit = {
+      ...values,
+      totalAmount: values.totalAmount || values.monthlyRate, // Ensure totalAmount is included
+      status: isDraft ? 'draft' : 'pending',
+    }
+
+    // Set state to display data in the dialog and open it.
+    setRequestData(dataToSubmit);
+    setIsConfirmOpen(true);
+  }
+
+  const handleConfirmSubmit = async (data: Partial<FormValues> | null) => {
+    if (isSubmitting || !data) return; // Prevent duplicate submissions and handle null data
+
+    try {
+      setIsSubmitting(true);
+      
+      // Check authentication status again before submission
+      const authState = useAuthStore.getState();
+      console.log("Auth state before submission:", { 
+        isAuthenticated: authState.isAuthenticated, 
+        hasToken: !!authState.token 
+      });
+      
+      if (!authState.isAuthenticated || !authState.token) {
+        // Handle authentication failure gracefully
+        setIsConfirmOpen(false);
+        setFormError("Your session has expired. Please log in again.");
+        return;
+      }
+
+      // Ensure totalAmount is set if it's missing but we have monthlyRate
+      if (!data?.totalAmount && data?.monthlyRate) {
+        data.totalAmount = data.monthlyRate;
+      }
+      
+      // Extra validation before submission
+      if (!data?.monthlyRate || !data?.totalAmount) {
+        throw new Error("Monthly rate and total amount are required");
+      }
+
+      setIsConfirmOpen(false);
+
+      const normalizedData = {
+        ...data,
+        status: isSubmittingAsDraft ? 'draft' : 'pending',
+        standardDuties: {
+          operations: data.standardDuties?.operations || false,
+          planning: data.standardDuties?.planning || false,
+          coordination: data.standardDuties?.coordination || false,
+          service: data.standardDuties?.service || false,
+        },
+      };
+
+      const newRequest = await addRequest(normalizedData);
+
+      if (newRequest && newRequest.id) {
+        // Redirect to the newly created request's page
+        router.push(`/requests/${newRequest.id}`);
+      } else {
+        // Fallback in case the response format is unexpected
+        console.error("Failed to get request ID from response, redirecting to success page.");
+        router.push("/requests?status=success");
+      }
+
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      setFormError(error instanceof Error ? error.message : "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isLoading) {
+    return <p>Loading...</p>
+  }
+
+  if (error) {
+    return <p>Error loading profile: {error.message}</p>
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>แบบฟอร์มคำขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษ (พ.ต.ส.)</CardTitle>
-          <CardDescription>สำหรับโรงพยาบาลอุตรดิตถ์</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-            <div className="space-y-2">
-              <Label>ประเภทบุคลากร *</Label>
-              <RadioGroup
-                value={formData.employeeType}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, employeeType: value }))}
-                className="flex flex-wrap gap-x-4 gap-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="civil_servant" id="r1" />
-                  <Label htmlFor="r1">ข้าราชการ</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="gov_employee" id="r2" />
-                  <Label htmlFor="r2">พนักงานราชการ</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="moph_employee" id="r3" />
-                  <Label htmlFor="r3">พนักงานกระทรวงสาธารณสุข</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="temp_employee" id="r4" />
-                  <Label htmlFor="r4">ลูกจ้างชั่วคราว</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-2">
-              <Label>ประเภทคำขอ *</Label>
-              <RadioGroup
-                value={formData.requestType}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, requestType: value }))}
-                className="space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="new" id="t1" />
-                  <Label htmlFor="t1">กรณีบรรจุใหม่หรือตรวจสอบสิทธิครั้งแรก</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="edit_no_rate_change" id="t2" />
-                  <Label htmlFor="t2">กรณีแก้ไขข้อมูลโดยไม่เปลี่ยนอัตราเงิน พ.ต.ส.</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="edit_rate_change" id="t3" />
-                  <Label htmlFor="t3">กรณีแก้ไขข้อมูลสิทธิโดยเปลี่ยนอัตราเงิน พ.ต.ส.</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <p className="text-sm font-semibold">เรียน ผู้อำนวยการโรงพยาบาลอุตรดิตถ์</p>
-
-            <div className="border p-4 rounded-md space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold">ข้อมูลผู้ขอ</h3>
-                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditingInfo(!isEditingInfo)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  {isEditingInfo ? 'ล็อกการแก้ไข' : 'แก้ไข'}
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="applicantName">ข้าพเจ้า (ชื่อ-สกุล)</Label>
-                  <Input id="applicantName" value={user?.name || ""} readOnly className="bg-gray-100" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position">ตำแหน่ง *</Label>
-                  <Input 
-                      id="position" 
-                      value={formData.position} 
-                      onChange={(e) => setFormData((prev) => ({ ...prev, position: e.target.value }))} 
-                      readOnly={!isEditingInfo}
-                      className={!isEditingInfo ? "bg-gray-100" : ""}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department">ปฏิบัติงานในกลุ่มงานหรือแผนก</Label>
-                <Input 
-                    id="department" 
-                    value={formData.department} 
-                    onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))} 
-                    placeholder="กลุ่มงาน/แผนก"
-                    readOnly={!isEditingInfo}
-                    className={!isEditingInfo ? "bg-gray-100" : ""}
-                />
-                <p className="text-sm text-gray-500">สังกัด: โรงพยาบาลอุตรดิตถ์ สำนักงานสาธารณสุขจังหวัดอุตรดิตถ์</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mainDuties">ปฏิบัติหน้าที่หลักของตำแหน่ง</Label>
-              <Textarea id="mainDuties" value={formData.mainDuties} onChange={(e) => setFormData((prev) => ({ ...prev, mainDuties: e.target.value }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>ปฏิบัติงานตามมาตรฐานกำหนดตำแหน่งในด้าน</Label>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="sd1" checked={formData.standardDuties.operations} onCheckedChange={(checked) => handleStandardDutyChange("operations", !!checked)} />
-                  <Label htmlFor="sd1">ปฏิบัติการ</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="sd2" checked={formData.standardDuties.planning} onCheckedChange={(checked) => handleStandardDutyChange("planning", !!checked)} />
-                  <Label htmlFor="sd2">การวางแผน</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="sd3" checked={formData.standardDuties.coordination} onCheckedChange={(checked) => handleStandardDutyChange("coordination", !!checked)} />
-                  <Label htmlFor="sd3">การประสานงาน</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="sd4" checked={formData.standardDuties.service} onCheckedChange={(checked) => handleStandardDutyChange("service", !!checked)} />
-                  <Label htmlFor="sd4">การบริการ</Label>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="assignedTask">ได้รับมอบหมายให้ปฏิบัติงาน</Label>
-              <Textarea id="assignedTask" value={formData.assignedTask} onChange={(e) => setFormData((prev) => ({ ...prev, assignedTask: e.target.value }))} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="group">กลุ่ม *</Label>
-                <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, group: value }))} value={formData.group}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="เลือกกลุ่ม" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from(new Set(allowanceRates.map(r => r.group))).map((group, index) => (
-                      <SelectItem key={index} value={group}>{group}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tier">ระดับ *</Label>
-                 <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, tier: value }))} value={formData.tier}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="เลือกระดับ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allowanceRates.filter(rate => rate.group === formData.group).map((rate, index) => (
-                      <SelectItem key={index} value={rate.tier}>{rate.tier}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>เอกสารประกอบ (เช่น ใบอนุญาตประกอบวิชาชีพ)</Label>
-              <FileUploadComponent
-                files={formData.documents}
-                onFilesChange={(files) => setFormData((prev) => ({ ...prev, documents: files }))}
-                folder="requests"
-                maxFiles={5}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">หมายเหตุ (ถ้ามี)</Label>
-              <Textarea
-                id="notes"
-                placeholder="หมายเหตุหรือความคิดเห็นเพิ่มเติม"
-                value={formData.notes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-              />
-            </div>
-
-            <Alert variant="destructive">
-              <AlertDescription>
-                <strong>คำเตือน:</strong> กรณีเปลี่ยนแปลงการปฏิบัติงาน เปลี่ยนแปลงตำแหน่ง หรือเปลี่ยนแปลงหน่วยงานที่ปฏิบัติงาน ผู้มีสิทธิได้รับเงิน พ.ต.ส. มีหน้าที่แจ้งแก่เจ้าหน้าที่งานบริหารทรัพยากรบุคคลของส่วนราชการ/หัวหน้างาน บริหารทั่วไป (ในกรณีที่ส่วนราชการไม่มีเจ้าหน้าที่งานบริหารทรัพยากรบุคคล) เพื่อแก้ไขข้อมูลสิทธิการรับเงิน พ.ต.ส. ให้ถูกต้องและเป็นปัจจุบันตลอดเวลาที่รับเงิน พ.ต.ส. และหากผู้มีสิทธิคนใด แจ้งข้อมูลสิทธิการรับเงิน พ.ต.ส. เป็นเท็จ หรือละเว้นไม่แจ้งแก้ไขข้อมูลสิทธิของตนให้ถูกต้อง โดยเจตนาให้เกิดความเสียหายแก่หน่วยงานของรัฐ อาจมีความผิดตามประมวลกฎหมายอาญา มาตรา ๑๗ หรือมาตรา ๒๖๗ และอาจถูกดำเนินการทางวินัยฐานทุจริตเงิน พ.ต.ส ได้
-              </AlertDescription>
-            </Alert>
-
-            {(formError) && (
-              <Alert variant="destructive">
+    <div className="max-w-5xl mx-auto">
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>สร้างคำขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษ (พ.ต.ส.)</CardTitle>
+            <CardDescription>กรุณากรอกรายละเอียดให้ครบถ้วนและถูกต้อง</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {formError && (
+              <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
-
-            <CardFooter className="flex justify-end space-x-4 p-0 pt-6">
-              <Button variant="outline" onClick={() => router.push("/requests")} disabled={isSubmitting}>
-                ยกเลิก
-              </Button>
-              <Button type="button" variant="secondary" onClick={(e) => handleSubmit(e, true)} disabled={isSubmitting}>
-                บันทึกเป็นฉบับร่าง
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "กำลังส่ง..." : "ส่งคำขอเพื่ออนุมัติ"}
-              </Button>
-            </CardFooter>
-          </form>
-        </CardContent>
-      </Card>
-      <ConfirmationDialog
-        isOpen={isConfirmOpen}
-        onOpenChange={setIsConfirmOpen}
-        onConfirm={handleConfirmSubmit}
-        title="ยืนยันการส่งคำขอ"
-        description="กรุณาตรวจสอบรายละเอียดคำขอรับเงิน พ.ต.ส. ก่อนส่งเพื่ออนุมัติ การดำเนินการนี้ไม่สามารถย้อนกลับได้"
-      />
+            <RequestForm
+              key={JSON.stringify(initialDataForForm)} // Re-mount form when initialData changes
+              initialData={initialDataForForm}
+              onSubmit={onSubmit}
+              onUpdateProfile={handleUpdateProfile}
+              allowanceRates={allowanceRates}
+              isSubmitting={isSubmitting}
+              isEditingInfo={isEditingInfo}
+              setIsEditingInfo={setIsEditingInfo}
+            />
+          </CardContent>
+        </Card>
+        <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันการส่งคำขอ</AlertDialogTitle>
+              <AlertDialogDescription>
+                กรุณาตรวจสอบรายละเอียดคำขอรับเงิน พ.ต.ส. ก่อนส่งเพื่ออนุมัติ การดำเนินการนี้ไม่สามารถย้อนกลับได้
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleConfirmSubmit(requestData)}>ยืนยัน</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   )
 }

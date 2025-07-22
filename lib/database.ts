@@ -15,6 +15,9 @@ const dbConfig = {
 
 // Create and cache the connection pool.
 // In development, this prevents new pools from being created on every hot-reload.
+// Log the configuration to diagnose connection issues
+// console.log("[Database] Initializing with config:", dbConfig);
+
 const globalForPool = global as typeof global & {
   pool?: mysql.Pool
 }

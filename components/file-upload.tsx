@@ -6,10 +6,10 @@ import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { StorageService } from "@/lib/storage"
-import type { FileUpload } from "@/lib/types"
+import { StorageService } from "@/lib/utils/storage"
+import type { FileUpload } from "@/lib/models"
 import { Upload, X, File, Eye } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/utils"
 
 interface FileUploadProps {
   files: FileUpload[]

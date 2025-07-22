@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
+import { useState, useEffect, useCallback } from "react"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Search, Edit, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
-import type { User } from "@/lib/types"
+import type { User } from "@/lib/models"
 
 export default function AdminUsersPage() {
   const { token } = useAuthStore()
@@ -21,13 +21,8 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
 
-  useEffect(() => {
-    if (token) {
-      fetchUsers()
-    }
-  }, [token])
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    if (!token) return
     try {
       setLoading(true)
       const response = await fetch("/api/admin/users", {
@@ -48,11 +43,16 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
 
   const filteredUsers = users.filter((user) => {
+    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
     const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fullName.includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.nationalId.includes(searchTerm)
     const matchesRole = roleFilter === "all" || user.role === roleFilter
@@ -130,7 +130,7 @@ export default function AdminUsersPage() {
             <TableBody>
               {filteredUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell className="font-medium">{`${user.firstName} ${user.lastName}`}</TableCell>
                   <TableCell>{user.nationalId}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>

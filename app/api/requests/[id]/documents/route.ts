@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
-import { verifyToken } from "@/lib/auth-utils"
-import type { FileUpload } from "@/lib/types"
+import { verifyToken } from "@/lib/utils/auth-utils"
+import type { FileUpload } from "@/lib/models"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {

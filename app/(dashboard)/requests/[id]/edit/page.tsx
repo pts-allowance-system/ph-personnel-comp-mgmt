@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,8 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileUploadComponent } from "@/components/file-upload"
-import type { FileUpload, AllowanceRequest } from "@/lib/types"
-import { formatToThb } from "@/lib/currency-utils"
+import type { FileUpload, AllowanceRequest } from "@/lib/models"
+import { formatToThb } from "@/lib/utils/currency-utils"
 
 export default function EditRequestPage() {
   const { user, token } = useAuthStore()
@@ -30,7 +30,7 @@ export default function EditRequestPage() {
 
   useEffect(() => {
     if (token) {
-      fetchRates(token)
+      fetchRates()
     }
   }, [token, fetchRates])
 
@@ -60,12 +60,12 @@ export default function EditRequestPage() {
       setFormError("ไม่พบผู้ใช้")
       return
     }
-    if (!formData.group || !formData.tier || !formData.startDate || !formData.endDate) {
+    if (!formData.allowanceGroup || !formData.tier || !formData.startDate || !formData.endDate) {
       setFormError("กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน")
       return
     }
 
-    const rate = rates.find((r) => r.group === formData.group && r.tier === formData.tier)
+    const rate = rates.find((r) => r.allowanceGroup === formData.allowanceGroup && r.tier === formData.tier)
     if (!rate) {
       setFormError("ไม่พบอัตราสำหรับกลุ่มและระดับที่เลือก")
       return
@@ -79,15 +79,13 @@ export default function EditRequestPage() {
     }
 
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    const zoneMultiplier = 1.2
-    const totalAmount = rate.baseRate * days * zoneMultiplier
+    const totalAmount = rate.monthlyRate * days
 
     const newStatus: AllowanceRequest['status'] = isDraft ? "draft" : "submitted"
 
     const dataToUpdate = {
       ...formData,
-      baseRate: rate.baseRate,
-      zoneMultiplier,
+      monthlyRate: rate.monthlyRate,
       totalAmount,
       status: newStatus,
     }
@@ -101,7 +99,7 @@ export default function EditRequestPage() {
 
     setIsSubmitting(true)
     try {
-      await updateRequest(params.id as string, updateData, token!)
+      await updateRequest(params.id as string, updateData)
       router.push(`/requests/${params.id}`)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "การอัปเดตคำขอล้มเหลว")
@@ -110,8 +108,8 @@ export default function EditRequestPage() {
     }
   }
 
-  const groups = [...new Set(rates.map((r) => r.group))]
-  const tiers = formData.group ? [...new Set(rates.filter((r) => r.group === formData.group).map((r) => r.tier))] : []
+  const groups = [...new Set(rates.map((r) => r.allowanceGroup))]
+  const tiers = formData.allowanceGroup ? [...new Set(rates.filter((r) => r.allowanceGroup === formData.allowanceGroup).map((r) => r.tier))] : []
 
   if (loading || !formData.id) return <div>กำลังโหลด...</div>
 
@@ -128,7 +126,7 @@ export default function EditRequestPage() {
               <div className="space-y-2">
                 <Label htmlFor="group">กลุ่มอัตรา พ.ต.ส. *</Label>
                 <Select
-                  value={formData.group || ""}
+                  value={formData.allowanceGroup || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, group: value, tier: "" }))}
                 >
                   <SelectTrigger>
@@ -148,7 +146,7 @@ export default function EditRequestPage() {
                 <Select
                   value={formData.tier || ""}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, tier: value }))}
-                  disabled={!formData.group}
+                  disabled={!formData.allowanceGroup}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="เลือกระดับ (Tier)" />
@@ -164,11 +162,11 @@ export default function EditRequestPage() {
               </div>
             </div>
 
-            {formData.group && formData.tier && (
+            {formData.allowanceGroup && formData.tier && (
               <div className="p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-800">
                   <strong>อัตราค่าตอบแทน:</strong>
-                  {formatToThb(rates.find((r) => r.group === formData.group && r.tier === formData.tier)?.baseRate)}
+                  {formatToThb(rates.find((r) => r.allowanceGroup === formData.allowanceGroup && r.tier === formData.tier)?.monthlyRate)}
                   ต่อวัน
                 </p>
               </div>
@@ -240,7 +238,7 @@ export default function EditRequestPage() {
               >
                 บันทึกเป็นฉบับร่าง
               </Button>
-              <Button type="submit" disabled={isSubmitting || !formData.group || !formData.tier}>
+              <Button type="submit" disabled={isSubmitting || !formData.allowanceGroup || !formData.tier}>
                 {isSubmitting ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
               </Button>
             </div>

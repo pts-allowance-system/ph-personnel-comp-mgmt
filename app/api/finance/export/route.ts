@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Database } from "@/lib/database"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 
 export async function GET(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT 
         r.id,
-        u.name as employee_name,
+        CONCAT(u.firstName, ' ', u.lastName) as employee_name,
         u.department,
         u.national_id,
         r.group_name,

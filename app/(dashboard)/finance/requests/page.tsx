@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -9,7 +9,8 @@ import { StatusBadge } from "@/components/status-badge"
 import { Eye, Download } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
-import type { AllowanceRequest } from "@/lib/types"
+import { th } from "date-fns/locale"
+import type { AllowanceRequest } from "@/lib/models"
 
 export default function FinanceRequestsPage() {
   const { user, token } = useAuthStore()
@@ -86,9 +87,9 @@ export default function FinanceRequestsPage() {
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Group/Tier</TableHead>
-                  <TableHead>Period</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -97,16 +98,13 @@ export default function FinanceRequestsPage() {
                   <TableRow key={request.id}>
                     <TableCell className="font-medium">{request.employeeName}</TableCell>
                     <TableCell>
-                      {request.group} / {request.tier}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(request.startDate), "MMM dd")} -{" "}
-                      {format(new Date(request.endDate), "MMM dd, yyyy")}
+                      {request.allowanceGroup} / {request.tier}
                     </TableCell>
                     <TableCell>฿{request.totalAmount.toLocaleString()}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
+                    <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/finance/requests/${request.id}`}>

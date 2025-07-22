@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { UsersDAL } from "@/lib/dal/users"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,8 +36,16 @@ export async function POST(request: NextRequest) {
     const userData = await request.json()
 
     // Validate required fields
-    if (!userData.nationalId || !userData.name || !userData.email || !userData.role || !userData.password) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    const requiredFields = ["nationalId", "firstName", "lastName", "email", "role", "password"];
+    for (const field of requiredFields) {
+      if (!userData[field]) {
+        return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 });
+      }
+    }
+
+    const allowedRoles = ["employee", "supervisor", "hr", "finance", "admin"];
+    if (!allowedRoles.includes(userData.role)) {
+      return NextResponse.json({ error: "Invalid role specified" }, { status: 400 });
     }
 
     // Check if user already exists

@@ -1,5 +1,3 @@
-
-
 export const calculateTotalDays = (startDate: string, endDate: string): number => {
   const start = new Date(startDate);
   const end = new Date(endDate);

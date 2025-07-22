@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Database } from "@/lib/database"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT 
         r.id as requestId,
-        u.name as employeeName,
+        CONCAT(u.firstName, ' ', u.lastName) as employeeName,
         u.department,
         r.total_amount as amount,
         r.status,

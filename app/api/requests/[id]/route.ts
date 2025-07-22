@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 import { RequestsDAL } from "@/lib/dal/requests"
-import { verifyToken } from "@/lib/auth-utils"
-import cache from "@/lib/cache"
+import { verifyToken } from "@/lib/utils/auth-utils"
+import cache from "@/lib/utils/cache"
 
 export async function GET(
   request: NextRequest,
@@ -28,7 +28,7 @@ export async function GET(
     const cachedRequest = cache.get(cacheKey);
     if (cachedRequest) {
       console.log(`[Cache] HIT for key: ${cacheKey}`);
-      return NextResponse.json(cachedRequest);
+      return NextResponse.json({ request: cachedRequest });
     }
     console.log(`[Cache] MISS for key: ${cacheKey}`);
 
@@ -46,7 +46,7 @@ export async function GET(
 
     cache.set(cacheKey, requestData);
 
-    return NextResponse.json(requestData)
+    return NextResponse.json({ request: requestData })
   } catch (error) {
     console.error("Get request error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

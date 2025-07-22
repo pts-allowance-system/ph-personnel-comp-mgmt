@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import type { FileUpload } from "@/lib/types"
+import type { FileUpload } from "@/lib/models"
+import Image from "next/image"
 import { File, Download, Eye, ExternalLink } from "lucide-react"
 
 interface DocumentViewerProps {
@@ -101,11 +102,15 @@ export function DocumentViewer({ documents, title = "Documents" }: DocumentViewe
                   </DialogHeader>
                   <div className="flex-1 overflow-auto">
                     {selectedDoc?.type.includes("image") ? (
-                      <img
-                        src={selectedDoc.url || "/placeholder.svg"}
-                        alt={selectedDoc.name}
-                        className="max-w-full h-auto"
-                      />
+                      <div className="relative w-full h-[60vh]">
+                        <Image
+                          src={selectedDoc.url || "/placeholder.svg"}
+                          alt={selectedDoc.name}
+                          fill
+                          style={{ objectFit: "contain" }}
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        />
+                      </div>
                     ) : selectedDoc?.type.includes("pdf") ? (
                       <iframe src={selectedDoc.url} className="w-full h-96" title={selectedDoc.name} />
                     ) : (

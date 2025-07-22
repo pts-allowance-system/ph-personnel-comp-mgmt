@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
@@ -10,7 +10,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { formatToThb } from "@/lib/currency-utils"
+import { formatToThb } from "@/lib/utils/currency-utils"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
 
 export default function FinanceHistoryPage() {
   const { user, token } = useAuthStore()
@@ -19,7 +21,7 @@ export default function FinanceHistoryPage() {
   useEffect(() => {
     if (token && user) {
       // Fetch requests for Finance role (defaults to 'hr-checked' status on the backend)
-      fetchRequests(token, { fetchAll: true })
+      fetchRequests({ fetchAll: true })
     }
 
     return () => {
@@ -70,15 +72,12 @@ export default function FinanceHistoryPage() {
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>{request.employeeName}</TableCell>
-                    <TableCell>
-                      {new Date(request.startDate).toLocaleDateString()} -{" "}
-                      {new Date(request.endDate).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{request.allowanceGroup} / {request.tier}</TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{new Date(request.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/requests/${request.id}`}>

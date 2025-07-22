@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/auth-store" // Ensure this path is correct
+import { useAuthStore } from "@/lib/store/auth-store" // Ensure this path is correct
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,26 +25,23 @@ const roleLandingPages: Record<UserRole, string> = {
 export default function LoginPage() {
   const [nationalId, setNationalId] = useState("")
   const [password, setPassword] = useState("")
-  // Destructure 'user' directly if your useAuthStore updates it upon login
-  const { login, loading, error, clearError } = useAuthStore()
+  const [formError, setFormError] = useState<string | null>(null);
+  const { login, loading, error: authError, clearError } = useAuthStore()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    clearError()
+    clearError() // Clear auth errors from previous attempts
+    setFormError(null); // Clear form-specific errors
 
-    // Client-side validation: National ID must be exactly 13 digits
+    // Client-side validation
     if (!/^\d{13}$/.test(nationalId)) {
-      // You might want to set a local error state here for this specific validation
-      // if you want different messages for different client-side failures
-      console.error("รหัสประจำตัวประชาชนต้องมี 13 หลักเท่านั้น");
+      setFormError("รหัสประจำตัวประชาชนต้องประกอบด้วยตัวเลข 13 หลัก");
       return;
     }
 
-    // You could add client-side password validation here too if needed
     if (!password) {
-      console.error("กรุณากรอกรหัสผ่าน");
-      // Potentially set an error state or display inline message
+      setFormError("กรุณากรอกรหัสผ่าน");
       return;
     }
 
@@ -116,9 +113,9 @@ export default function LoginPage() {
               )} */}
             </div>
 
-            {error && (
+            {(authError || formError) && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{authError || formError}</AlertDescription>
               </Alert>
             )}
 

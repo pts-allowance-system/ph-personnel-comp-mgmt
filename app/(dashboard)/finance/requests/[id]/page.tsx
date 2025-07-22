@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useAuthStore } from "@/lib/auth-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,12 +14,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileUploadComponent } from "@/components/file-upload"
 import { DollarSign, FileText, User, Check, Receipt, Calendar } from "lucide-react"
 import { format } from "date-fns"
-import type { AllowanceRequest, FileUpload } from "@/lib/types"
+import type { AllowanceRequest, FileUpload } from "@/lib/models"
 
 export default function FinanceRequestDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, token } = useAuthStore()
+  const { token } = useAuthStore()
   const [request, setRequest] = useState<AllowanceRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -28,9 +28,9 @@ export default function FinanceRequestDetailsPage() {
   const [referenceNumber, setReferenceNumber] = useState("")
   const [proofDocuments, setProofDocuments] = useState<FileUpload[]>([])
 
-  // Fetch request data
   useEffect(() => {
     async function fetchRequest() {
+      if (!params.id) return
       try {
         setLoading(true)
         const response = await fetch(`/api/requests/${params.id}`, {
@@ -53,9 +53,7 @@ export default function FinanceRequestDetailsPage() {
       }
     }
 
-    if (token) {
-      fetchRequest()
-    }
+    fetchRequest()
   }, [params.id, token])
 
   const handleDisbursement = async () => {
@@ -67,7 +65,6 @@ export default function FinanceRequestDetailsPage() {
     try {
       setSubmitting(true)
 
-      // Upload proof documents if any
       if (proofDocuments.length > 0) {
         await fetch(`/api/requests/${params.id}/documents`, {
           method: "POST",
@@ -82,7 +79,6 @@ export default function FinanceRequestDetailsPage() {
         })
       }
 
-      // Update the request status
       const response = await fetch(`/api/requests/${params.id}`, {
         method: "PATCH",
         headers: {
@@ -100,7 +96,6 @@ export default function FinanceRequestDetailsPage() {
         throw new Error("Failed to update request")
       }
 
-      // Add comment about disbursement
       await fetch(`/api/requests/${params.id}/comments`, {
         method: "POST",
         headers: {
@@ -112,7 +107,6 @@ export default function FinanceRequestDetailsPage() {
         }),
       })
 
-      // Redirect back to the list
       router.push("/finance/requests")
     } catch (err) {
       setError("Error processing disbursement")
@@ -139,8 +133,10 @@ export default function FinanceRequestDetailsPage() {
   }
 
   const calculateDays = () => {
+    if (!request.startDate || !request.endDate) return 0
     const start = new Date(request.startDate)
     const end = new Date(request.endDate)
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
   }
 
@@ -154,7 +150,6 @@ export default function FinanceRequestDetailsPage() {
         <StatusBadge status={request.status} />
       </div>
 
-      {/* Request Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -162,44 +157,40 @@ export default function FinanceRequestDetailsPage() {
             <span>Request Information</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CardContent>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-500">Employee</label>
-                <p className="text-sm text-gray-900">{request.employeeName}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Group / Tier</label>
-                <p className="text-sm text-gray-900">
-                  {request.group} / {request.tier}
-                </p>
+                <p className="text-sm text-gray-900">{request.employeeName || "N/A"}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Period</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.startDate), "MMM dd, yyyy")} -{" "}
-                  {format(new Date(request.endDate), "MMM dd, yyyy")}
+                  {request.startDate ? format(new Date(request.startDate), "MMM dd, yyyy") : "N/A"} -{" "}
+                  {request.endDate ? format(new Date(request.endDate), "MMM dd, yyyy") : "N/A"}
                 </p>
               </div>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Status</label>
-                <div className="mt-1">
-                  <StatusBadge status={request.status} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Created</label>
+                <label className="text-sm font-medium text-gray-500">Date Submitted</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.createdAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {request.createdAt ? format(new Date(request.createdAt), "MMM dd, yyyy") : "N/A"}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Last Updated</label>
                 <p className="text-sm text-gray-900">
-                  {format(new Date(request.updatedAt), "MMM dd, yyyy 'at' HH:mm")}
+                  {request.updatedAt ? format(new Date(request.updatedAt), "MMM dd, yyyy") : "N/A"}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Group / Tier</label>
+                <p className="text-sm text-gray-900">
+                  {request.allowanceGroup} / {request.tier}
                 </p>
               </div>
             </div>
@@ -207,7 +198,6 @@ export default function FinanceRequestDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Calculation Summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -219,15 +209,11 @@ export default function FinanceRequestDetailsPage() {
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Base Rate</span>
-              <span className="text-sm font-medium">฿{request.baseRate.toLocaleString()}</span>
+              <span className="text-sm font-medium">{request.monthlyRate.toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Number of Days</span>
               <span className="text-sm font-medium">{calculateDays()} days</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Zone Multiplier</span>
-              <span className="text-sm font-medium">{request.zoneMultiplier}x</span>
             </div>
             <Separator />
             <div className="flex justify-between">
@@ -238,7 +224,6 @@ export default function FinanceRequestDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Documents */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -252,7 +237,6 @@ export default function FinanceRequestDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Disbursement Form */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">

@@ -2,8 +2,8 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -17,7 +17,7 @@ export default function RulesPage() {
 
   useEffect(() => {
     if (token) {
-      fetchRules(token)
+      fetchRules()
     }
     return () => clearData()
   }, [token, fetchRules, clearData])

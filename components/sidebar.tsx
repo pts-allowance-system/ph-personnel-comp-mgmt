@@ -1,14 +1,20 @@
 "use client"
 
-import { useAuthStore } from "@/lib/auth-store"
-import { cn } from "@/lib/utils"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { cn } from "@/lib/utils/utils"; // corrected import path
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Users, DollarSign, Settings, BarChart3, CheckSquare, UserCheck, CreditCard } from "lucide-react"
+import { FileText, Users, DollarSign, Settings, BarChart3, CheckSquare, UserCheck, CreditCard, History, LucideProps } from "lucide-react"
+import { UserRole } from "@/lib/models";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
 
-import { History } from 'lucide-react';
+interface MenuItem {
+  href: string;
+  label: string;
+  icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>;
+}
 
-const roleMenus = {
+const roleMenus: Record<UserRole, MenuItem[]> = {
   employee: [
     { href: "/requests", label: "คำขอของฉัน", icon: FileText },
     { href: "/requests/history", label: "ประวัติของฉัน", icon: History },
@@ -37,7 +43,7 @@ const roleMenus = {
 }
 
 export function Sidebar() {
-  const { user } = useAuthStore()
+  const user = useAuthStore((state) => state.user) // corrected typing error
   const pathname = usePathname()
 
   if (!user) return null
@@ -48,7 +54,7 @@ export function Sidebar() {
     <aside className="w-64 bg-gray-50 border-r min-h-screen">
       <div className="p-4">
         <div className="space-y-2">
-          {menuItems.map((item) => {
+          {menuItems.map((item: MenuItem) => {
             const Icon = item.icon
             const isActive = pathname === item.href
 

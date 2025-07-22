@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RatesDAL } from "@/lib/dal/rates"
-import { verifyToken } from "@/lib/auth-utils"
-import cache from "@/lib/cache"
+import { verifyToken } from "@/lib/utils/auth-utils"
+import cache from "@/lib/utils/cache"
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,15 +25,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(rates)
     } else {
       const cacheKey = "rates:all"
-      const cachedRates = cache.get<{ rates: any[] }>(cacheKey)
+      const cachedRates = cache.get<any[]>(cacheKey)
       if (cachedRates) {
         return NextResponse.json(cachedRates)
       }
 
       const rates = await RatesDAL.findAll()
-      const response = { rates }
-      cache.set(cacheKey, response)
-      return NextResponse.json(response)
+      cache.set(cacheKey, rates)
+      return NextResponse.json(rates)
     }
   } catch (error) {
     console.error("Get rates error:", error)

@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { formatToThb } from "@/lib/currency-utils"
+import { formatToThb } from "@/lib/utils/currency-utils"
 
 export default function RatesPage() {
   const { user, token } = useAuthStore()
@@ -15,7 +15,7 @@ export default function RatesPage() {
 
   useEffect(() => {
     if (token && user?.role === 'admin') {
-      fetchRates(token)
+      fetchRates()
     }
 
     return () => {
@@ -63,9 +63,9 @@ export default function RatesPage() {
               <TableBody>
                 {rates.map((rate) => (
                   <TableRow key={rate.id}>
-                    <TableCell>{rate.group}</TableCell>
+                    <TableCell>{rate.allowanceGroup}</TableCell>
                     <TableCell>{rate.tier}</TableCell>
-                    <TableCell>{formatToThb(rate.baseRate)}</TableCell>
+                    <TableCell>{formatToThb(rate.monthlyRate)}</TableCell>
                     <TableCell>
                       <Button variant="outline" size="sm">Edit</Button>
                     </TableCell>

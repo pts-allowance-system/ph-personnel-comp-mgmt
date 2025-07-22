@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
+import { useState, useEffect, useCallback } from "react"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -47,11 +47,8 @@ export default function FinanceDashboardPage() {
   const [error, setError] = useState("")
   const [exporting, setExporting] = useState(false)
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [token])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    if (!token) return
     try {
       setLoading(true)
 
@@ -81,7 +78,11 @@ export default function FinanceDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
 
   const handleExportSummary = async (format: "csv" | "excel") => {
     try {

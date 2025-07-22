@@ -1,5 +1,5 @@
-import { Database } from "../database"
-import type { Rule } from "../types"
+import { Database } from "../database";
+import { Rule } from "../models";
 
 export class RulesDAL {
   static async findAll(): Promise<Rule[]> {
@@ -7,9 +7,42 @@ export class RulesDAL {
       SELECT id, name, description, conditions, isActive, created_at, updated_at
       FROM allowance_rules
       ORDER BY name ASC
-    `
-    const rows = await Database.query<any>(sql)
-    return rows.map(row => ({ ...row, conditions: JSON.parse(row.conditions) }))
+    `;
+    const rows = await Database.query<any>(sql);
+    return rows.map((row) => ({ ...row, conditions: JSON.parse(row.conditions) }));
+  }
+
+  static async findMatchingRules(
+    position: string | null,
+    department: string | null
+  ): Promise<Rule[]> {
+    if (!position && !department) {
+      return [];
+    }
+
+    // Use JSON_EXTRACT and JSON_CONTAINS for robust querying of JSON data.
+    let sql = `
+      SELECT id, name, description, conditions, isActive, created_at, updated_at
+      FROM allowance_rules
+      WHERE isActive = true AND (
+    `;
+
+    const conditions: string[] = [];
+    if (position) {
+      conditions.push(
+        `JSON_CONTAINS(JSON_EXTRACT(conditions, '$.all[*].fact'), '"position"')`
+      );
+    }
+    if (department) {
+      conditions.push(
+        `JSON_CONTAINS(JSON_EXTRACT(conditions, '$.all[*].fact'), '"department"')`
+      );
+    }
+
+    sql += conditions.join(" OR ") + " ) ORDER BY name ASC";
+
+    const rows = await Database.query<any>(sql);
+    return rows.map((row) => ({ ...row, conditions: JSON.parse(row.conditions) }));
   }
 
   static async findById(id: string): Promise<Rule | null> {

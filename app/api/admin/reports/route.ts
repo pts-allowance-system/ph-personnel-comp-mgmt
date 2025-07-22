@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 import { ReportsDAL } from "@/lib/dal/reports"
 
 export async function GET(request: NextRequest) {

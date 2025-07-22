@@ -3,8 +3,8 @@
 import { useEffect } from "react"
 import { format } from "date-fns"
 import { th } from "date-fns/locale"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { formatToThb } from "@/lib/currency-utils"
+import { formatToThb } from "@/lib/utils/currency-utils"
 
 export default function HrHistoryPage() {
   const { user, token } = useAuthStore()
@@ -21,7 +21,7 @@ export default function HrHistoryPage() {
   useEffect(() => {
     if (user && token) {
       // Fetch requests for HR role (defaults to 'approved' status on the backend)
-      fetchRequests(token, { fetchAll: true })
+      fetchRequests({ fetchAll: true })
     }
 
     return () => {
@@ -61,10 +61,9 @@ export default function HrHistoryPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>พนักงาน</TableHead>
-                  <TableHead>ช่วงเวลา</TableHead>
                   <TableHead>จำนวนเงิน</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead>วันที่ส่ง</TableHead>
+                  <TableHead>วันที่ยื่นเรื่อง</TableHead>
                   <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
@@ -72,15 +71,11 @@ export default function HrHistoryPage() {
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>{request.employeeName}</TableCell>
-                    <TableCell>
-                      {format(new Date(request.startDate), "d MMM yy", { locale: th })} -{" "}
-                      {format(new Date(request.endDate), "d MMM yy", { locale: th })}
-                    </TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{format(new Date(request.createdAt), "d MMM yyyy", { locale: th })}</TableCell>
+                    <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/requests/${request.id}`}>

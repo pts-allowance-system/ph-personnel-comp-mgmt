@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RulesDAL } from "@/lib/dal/rules"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -29,6 +29,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const updates = await request.json()
+
+    // Basic validation
+    if (updates.name === '' || (updates.conditions && typeof updates.conditions !== 'object')) {
+        return NextResponse.json({ error: 'Invalid update data provided.' }, { status: 400 });
+    }
     const success = await RulesDAL.update(params.id, updates)
 
     if (!success) {

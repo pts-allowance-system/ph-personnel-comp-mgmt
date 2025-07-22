@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RulesDAL } from "@/lib/dal/rules"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     const ruleData = await request.json()
+
+    // Basic validation
+    if (!ruleData.name || typeof ruleData.conditions !== 'object') {
+      return NextResponse.json({ error: 'Rule name and conditions are required.' }, { status: 400 });
+    }
+
     const ruleId = await RulesDAL.create(ruleData)
 
     return NextResponse.json({

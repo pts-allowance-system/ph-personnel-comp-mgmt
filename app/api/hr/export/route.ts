@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { Database } from "@/lib/database"
-import { verifyToken } from "@/lib/auth-utils"
+import { verifyToken } from "@/lib/utils/auth-utils"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 
 export async function GET(request: NextRequest) {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         r.id,
         r.employee_id,
-        u.name as employee_name,
+        CONCAT(u.firstName, ' ', u.lastName) as employee_name,
         u.department,
         u.position,
         r.group_name,
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
         r.total_amount,
         r.created_at,
         r.updated_at,
-        supervisor.name as supervisor_name,
-        hr_user.name as hr_reviewer
+        CONCAT(supervisor.firstName, ' ', supervisor.lastName) as supervisor_name,
+        CONCAT(hr_user.firstName, ' ', hr_user.lastName) as hr_reviewer
       FROM allowance_requests r
       JOIN users u ON r.employee_id = u.id
       LEFT JOIN request_comments rc_supervisor ON r.id = rc_supervisor.request_id 

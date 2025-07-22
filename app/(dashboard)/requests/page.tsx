@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect } from "react"
-import { useAuthStore } from "@/lib/auth-store"
-import { useDataStore } from "@/lib/data-store"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,9 +11,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Eye, Edit } from "lucide-react"
 import Link from "next/link"
 
-import { formatToThb } from "@/lib/currency-utils"
-import { formatDateToThai } from "@/lib/date-utils"
-import { RequestStatus } from "@/lib/types"
+import { formatToThb } from "@/lib/utils/currency-utils"
+import { format } from "date-fns"
+import { th } from "date-fns/locale"
 
 
 
@@ -24,7 +24,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     if (token && user) {
-      fetchRequests(token, { userId: user.id })
+      fetchRequests({ userId: user.id })
     }
 
     // Cleanup on unmount
@@ -75,11 +75,10 @@ export default function RequestsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ช่วงเวลา</TableHead>
                   <TableHead>กลุ่มอัตรา พ.ต.ส.</TableHead>
                   <TableHead>จำนวนเงิน</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead>วันที่สร้าง</TableHead>
+                  <TableHead>วันที่ยื่นเรื่อง</TableHead>
                   <TableHead>การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
@@ -87,16 +86,13 @@ export default function RequestsPage() {
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
-                      {`${formatDateToThai(request.startDate)} - ${formatDateToThai(request.endDate)}`}
-                    </TableCell>
-                    <TableCell>
-                      {request.group} / {request.tier}
+                      {request.allowanceGroup} / {request.tier}
                     </TableCell>
                     <TableCell>{formatToThb(request.totalAmount)}</TableCell>
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
-                    <TableCell>{formatDateToThai(request.createdAt)}</TableCell>
+                    <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm" asChild>
@@ -104,7 +100,7 @@ export default function RequestsPage() {
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
-                        {request.status === RequestStatus.Draft && (
+                        {request.status === 'draft' && (
                           <Button variant="ghost" size="sm" asChild>
                             <Link href={`/requests/${request.id}/edit`}>
                               <Edit className="h-4 w-4" />

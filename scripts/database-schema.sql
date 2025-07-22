@@ -2,12 +2,16 @@
 CREATE TABLE users (
     id CHAR(36) PRIMARY KEY,
     national_id VARCHAR(13) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
+    firstName VARCHAR(128) NOT NULL,
+    lastName VARCHAR(128) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('employee', 'supervisor', 'hr', 'finance', 'admin') NOT NULL,
     department VARCHAR(255),
     position VARCHAR(255),
+    hasSpecialOrder BOOLEAN DEFAULT FALSE,
+    certifications JSON,
+    specialTasks JSON,
     isActive BOOLEAN DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -41,22 +45,40 @@ CREATE TABLE allowance_rules (
 CREATE TABLE allowance_requests (
     id CHAR(36) PRIMARY KEY,
     employee_id CHAR(36) NOT NULL,
-    group_name VARCHAR(100) NOT NULL,
-    tier VARCHAR(100) NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    status ENUM('draft', 'submitted', 'approved', 'hr-checked', 'disbursed', 'rejected') DEFAULT 'draft',
-    base_rate DECIMAL(10,2) NOT NULL,
-    zone_multiplier DECIMAL(4,2) DEFAULT 1.00,
-    total_amount DECIMAL(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'draft', -- Using VARCHAR to accommodate more descriptive statuses
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- New form fields
+    employee_type VARCHAR(100),
+    request_type VARCHAR(100),
+    position VARCHAR(255),
+    department VARCHAR(255),
+    main_duties TEXT,
+    standard_duties JSON, -- Storing as JSON
+    assigned_task TEXT,
+    monthly_rate DECIMAL(10,2),
+    total_amount DECIMAL(12,2),
+    effective_date DATE,
+    start_date DATE, -- Made nullable
+    end_date DATE, -- Made nullable
+    total_days INT,
+    allowance_group VARCHAR(100),
+    tier VARCHAR(100),
     notes TEXT,
+
+    -- Fields for processing and auditing
     hr_override BOOLEAN DEFAULT FALSE,
     rule_check_results LONGTEXT,
     disbursement_date DATE,
     reference_number VARCHAR(100),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Approval tracking
+    approved_at DATETIME,
+    approved_by CHAR(36),
+
     FOREIGN KEY (employee_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_employee_id (employee_id),
     INDEX idx_status (status),
     INDEX idx_created_at (created_at)

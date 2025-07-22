@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
+import { useAuthStore } from "../store/auth-store";
+
 
 // Supabase configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -24,22 +26,39 @@ export interface UploadResult {
 export class StorageService {
   static async uploadFile(file: File, folder = "general"): Promise<UploadResult> {
     try {
-      // Check if Supabase is configured
-      if (!supabase) {
+      // 1. Check if Supabase is configured
+      if (!this.isConfigured()) {
         return {
           success: false,
           error: "File storage not configured. Please set up Supabase credentials.",
         }
       }
 
-      // Generate unique filename
-      const timestamp = Date.now()
-      const randomString = Math.random().toString(36).substring(2, 15)
-      const fileExtension = file.name.split(".").pop()
-      const fileName = `${timestamp}-${randomString}.${fileExtension}`
+      // 2. Validate file before uploading
+      const validation = this.validateFile(file)
+      if (!validation.valid) {
+        return { success: false, error: validation.error }
+      }
+
+      // 3. Sanitize and generate unique filename
+      const fileExtension = file.name.split(".").pop() || "bin"
+      let sanitizedBaseName = file.name
+        .replace(`.${fileExtension}`, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-") // Replace non-alphanumeric chars with '-'
+        .replace(/-+/g, "-") // Replace multiple hyphens with a single one
+        .replace(/^-+|-+$/g, "") // Remove leading/trailing hyphens
+        .slice(0, 50) // Truncate to a reasonable length
+
+      if (!sanitizedBaseName) {
+        sanitizedBaseName = "file"
+      }
+
+      const uniqueId = self.crypto.randomUUID()
+      const fileName = `${sanitizedBaseName}-${uniqueId}.${fileExtension}`
       const filePath = `${folder}/${fileName}`
 
-      // Upload file to Supabase Storage
+      // 4. Upload file to Supabase Storage
       const { data, error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
@@ -50,7 +69,7 @@ export class StorageService {
         return { success: false, error: error.message }
       }
 
-      // Get public URL
+      // 5. Get public URL
       const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath)
 
       return {
@@ -149,3 +168,30 @@ export class StorageService {
     return supabase !== null
   }
 }
+
+// A wrapper for the native fetch function to handle auth tokens and errors.
+export const api = async (url: string, options: RequestInit = {}) => {
+  const { token, logout } = useAuthStore.getState();
+
+  // Add the Authorization header if a token exists.
+  if (token) {
+    options.headers = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  // Always include credentials to ensure cookies are sent
+  options.credentials = 'include';
+
+  const response = await fetch(url, options);
+
+  // If the response is a 401 Unauthorized, log the user out.
+  if (response.status === 401) {
+    logout();
+    throw new Error('Session expired. Please log in again.');
+  }
+
+  return response;
+};
