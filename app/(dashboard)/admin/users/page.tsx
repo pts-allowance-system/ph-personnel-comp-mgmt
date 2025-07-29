@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,43 +12,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Search, Edit, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
-import type { User } from "@/lib/models"
 
 export default function AdminUsersPage() {
-  const { token } = useAuthStore()
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const { token } = useAuthStore() // token might still be needed for auth checks
+  const { users, fetchUsers, loading, error, clearData } = useDataStore()
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
 
-  const fetchUsers = useCallback(async () => {
-    if (!token) return
-    try {
-      setLoading(true)
-      const response = await fetch("/api/admin/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch users")
-      }
-
-      const data = await response.json()
-      setUsers(data.users)
-    } catch (err) {
-      setError("Error loading users")
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
   useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+    if (token) {
+      fetchUsers()
+    }
+
+    return () => {
+      clearData()
+    }
+  }, [token, fetchUsers, clearData])
 
   const filteredUsers = users.filter((user) => {
     const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();

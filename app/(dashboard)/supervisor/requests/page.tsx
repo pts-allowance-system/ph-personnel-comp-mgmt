@@ -1,52 +1,35 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
-import { Eye } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Eye, Clock, DollarSign } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { th } from "date-fns/locale"
 import { formatToThb } from "@/lib/utils/currency-utils"
-import type { AllowanceRequest } from "@/lib/models"
 
 export default function SupervisorRequestsPage() {
-  const { user, token } = useAuthStore()
-  const [requests, setRequests] = useState<AllowanceRequest[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const { user } = useAuthStore()
+  const { requests, fetchRequests, loading, error, clearData } = useDataStore()
 
   useEffect(() => {
-    async function fetchRequests() {
-      try {
-        setLoading(true)
-        const response = await fetch("/api/requests?status=submitted", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error("ไม่สามารถดึงข้อมูลคำขอได้")
-        }
-
-        const data = await response.json()
-        setRequests(data.requests)
-      } catch (err) {
-        setError("เกิดข้อผิดพลาดในการโหลดคำขอ")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+    if (user?.department) {
+      fetchRequests({ status: "submitted", department: user.department })
     }
 
-    if (token) {
-      fetchRequests()
+    return () => {
+      clearData()
     }
-  }, [token])
+  }, [user, fetchRequests, clearData])
+
+  const totalPending = requests.length
+  const totalAmount = requests.reduce((sum, req) => sum + req.totalAmount, 0)
 
   if (loading) {
     return <div className="flex justify-center p-8">กำลังโหลดคำขอ...</div>
@@ -59,11 +42,39 @@ export default function SupervisorRequestsPage() {
         <p className="text-gray-600">ตรวจสอบและอนุมัติคำขอเบี้ยเลี้ยงจากทีมของคุณ</p>
       </div>
 
-      {error && <div className="text-red-500">{error}</div>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">คำขอที่รอดำเนินการ</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalPending}</div>
+            <p className="text-xs text-muted-foreground">คำขอที่รอการอนุมัติจากคุณ</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ยอดรวมที่รอดำเนินการ</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatToThb(totalAmount)}</div>
+            <p className="text-xs text-muted-foreground">ผลรวมของคำขอที่รอดำเนินการทั้งหมด</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>คำขอที่รอดำเนินการ</CardTitle>
+          <CardTitle>รายการคำขอ</CardTitle>
           <CardDescription>คำขอที่รอการอนุมัติจากหัวหน้างาน</CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,10 +1,18 @@
+// A very simple mock to test if the file is being picked up at all.
 export const db = {
-  select: jest.fn().mockReturnThis(),
-  from: jest.fn().mockReturnThis(),
-  where: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockResolvedValue([]),
-  insert: jest.fn().mockReturnThis(),
-  values: jest.fn().mockResolvedValue({ insertId: 1 }),
-  update: jest.fn().mockReturnThis(),
-  set: jest.fn().mockReturnThis(),
+  select: jest.fn(() => ({
+    from: jest.fn(() => ({
+      where: jest.fn(() => ({
+        limit: jest.fn().mockResolvedValue([]),
+      })),
+    })),
+  })),
+  insert: jest.fn(() => ({
+      values: jest.fn().mockResolvedValue({ insertId: 1 })
+  })),
+  update: jest.fn(() => ({
+      set: jest.fn(() => ({
+          where: jest.fn().mockResolvedValue({ rowsAffected: 1 })
+      }))
+  }))
 };

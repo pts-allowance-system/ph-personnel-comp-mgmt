@@ -1,24 +1,65 @@
 import { create } from "zustand"
 import { api } from "../utils/storage"
-import type { AllowanceRequest, Rate, Comment, Rule } from "../models"
+import type { AllowanceRequest, Rate, Comment, Rule, User } from "../models"
+
+// Define interfaces for dashboard data to ensure type safety
+interface DashboardStats {
+  [key: string]: any;
+}
+
+interface MonthlyData {
+  [key: string]: any;
+}
+
+interface RequestWithApprover extends AllowanceRequest {
+  approverName?: string;
+  approverRole?: string;
+  processingTime?: number;
+}
+
+interface DisbursementSummary {
+    [key: string]: any;
+}
+
+interface HrDashboardData {
+  stats: DashboardStats | null;
+  monthlyData: MonthlyData[];
+  requests: RequestWithApprover[];
+}
+
+interface FinanceDashboardData {
+  stats: DashboardStats | null;
+  monthlyData: MonthlyData[];
+  disbursements: DisbursementSummary[];
+}
 
 interface DataState {
   requests: AllowanceRequest[];
   currentRequest: AllowanceRequest | null; // To hold the currently viewed/edited request
   rates: Rate[];
   rules: Rule[];
+  users: User[];
+  hrDashboardData: HrDashboardData;
+  financeDashboardData: FinanceDashboardData;
   loading: boolean;
   error: string | null;
   authErrorCallback: (() => void) | null;
   setAuthErrorCallback: (callback: (() => void) | null) => void;
-  fetchRequests: (options?: { userId?: string; fetchAll?: boolean }) => Promise<void>;
+  fetchRequests: (options?: {
+    userId?: string;
+    fetchAll?: boolean;
+    status?: string;
+    department?: string;
+  }) => Promise<void>;
   fetchRequestById: (id: string) => Promise<AllowanceRequest | null>;
   fetchRates: () => Promise<void>;
   fetchRules: () => Promise<void>;
+  fetchUsers: () => Promise<void>;
+  fetchHrDashboardData: () => Promise<void>;
+  fetchFinanceDashboardData: () => Promise<void>;
   addRequest: (request: Partial<AllowanceRequest>) => Promise<AllowanceRequest | null>;
   updateRequest: (id: string, updates: Partial<AllowanceRequest>) => Promise<boolean>;
   addComment: (requestId: string, commentData: { message: string }) => Promise<void>;
-  fetchRequestsByDepartment: (department: string) => Promise<void>;
   clearCurrentRequest: () => void;
   clearData: () => void;
 }
@@ -28,23 +69,39 @@ export const useDataStore = create<DataState>((set, get) => ({
   currentRequest: null,
   rates: [],
   rules: [],
+  users: [],
+  hrDashboardData: { stats: null, monthlyData: [], requests: [] },
+  financeDashboardData: { stats: null, monthlyData: [], disbursements: [] },
   loading: false,
   error: null,
   authErrorCallback: null,
 
   setAuthErrorCallback: (callback) => set({ authErrorCallback: callback }),
 
-  fetchRequests: async (options: { userId?: string; fetchAll?: boolean } = {}) => {
-    const { userId, fetchAll = false } = options;
+  fetchRequests: async (
+    options: {
+      userId?: string;
+      fetchAll?: boolean;
+      status?: string;
+      department?: string;
+    } = {}
+  ) => {
+    const { userId, fetchAll = false, status, department } = options;
     try {
-      set({ loading: true, error: null })
-      let url = "/api/requests"
-      const params = new URLSearchParams()
-      if (userId) params.append("userId", userId)
-      params.append("fetchAll", String(fetchAll))
-      if (params.toString()) url += `?${params.toString()}`
+      set({ loading: true, error: null });
+      let url = "/api/requests";
+      const params = new URLSearchParams();
 
-      const response = await api(url)
+      if (userId) params.append("userId", userId);
+      if (status) params.append("status", status);
+      if (department) params.append("department", department);
+      params.append("fetchAll", String(fetchAll));
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const response = await api(url);
 
       if (!response.ok) throw new Error(`Failed to fetch requests: ${response.statusText}`)
 
@@ -230,19 +287,84 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  fetchRequestsByDepartment: async (department: string) => {
-    try {
-      set({ loading: true, error: null })
-      const response = await api(`/api/requests?department=${department}`)
+  clearCurrentRequest: () => {
+    set({ currentRequest: null });
+  },
 
-      if (!response.ok) throw new Error(`Failed to fetch requests: ${response.statusText}`)
-      const data = await response.json()
-      set({ requests: data.requests, loading: false })
+  fetchUsers: async () => {
+    try {
+      set({ loading: true, error: null });
+      const response = await api("/api/admin/users");
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      set({ users: data.users, loading: false });
     } catch (error) {
       if (error instanceof Error && error.message.includes("Session expired")) {
-        get().authErrorCallback?.()
+        get().authErrorCallback?.();
       }
-      set({ error: error instanceof Error ? error.message : "Failed to fetch requests", loading: false })
+      set({ error: error instanceof Error ? error.message : "Failed to fetch users", loading: false });
+    }
+  },
+
+  fetchHrDashboardData: async () => {
+    try {
+      set({ loading: true, error: null });
+      const statsResponse = await api("/api/hr/dashboard/stats");
+      const requestsResponse = await api("/api/hr/dashboard/requests");
+
+      if (!statsResponse.ok || !requestsResponse.ok) {
+        throw new Error("Failed to fetch HR dashboard data");
+      }
+
+      const statsData = await statsResponse.json();
+      const requestsData = await requestsResponse.json();
+
+      set({
+        hrDashboardData: {
+          stats: statsData.stats,
+          monthlyData: statsData.monthlyData,
+          requests: requestsData.requests,
+        },
+        loading: false,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Session expired")) {
+        get().authErrorCallback?.();
+      }
+      set({ error: error instanceof Error ? error.message : "Failed to fetch HR dashboard data", loading: false });
+    }
+  },
+
+  fetchFinanceDashboardData: async () => {
+    try {
+      set({ loading: true, error: null });
+      const statsResponse = await api("/api/finance/dashboard/stats");
+      const disbursementsResponse = await api("/api/finance/dashboard/disbursements");
+
+      if (!statsResponse.ok || !disbursementsResponse.ok) {
+        throw new Error("Failed to fetch Finance dashboard data");
+      }
+
+      const statsData = await statsResponse.json();
+      const disbursementsData = await disbursementsResponse.json();
+
+      set({
+        financeDashboardData: {
+          stats: statsData.stats,
+          monthlyData: statsData.monthlyData,
+          disbursements: disbursementsData.disbursements,
+        },
+        loading: false,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Session expired")) {
+        get().authErrorCallback?.();
+      }
+      set({ error: error instanceof Error ? error.message : "Failed to fetch Finance dashboard data", loading: false });
     }
   },
 
@@ -251,6 +373,16 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   clearData: () => {
-    set({ requests: [], rates: [], rules: [], currentRequest: null, loading: false, error: null })
+    set({
+      requests: [],
+      rates: [],
+      rules: [],
+      users: [],
+      hrDashboardData: { stats: null, monthlyData: [], requests: [] },
+      financeDashboardData: { stats: null, monthlyData: [], disbursements: [] },
+      currentRequest: null,
+      loading: false,
+      error: null,
+    });
   },
-}))
+}));

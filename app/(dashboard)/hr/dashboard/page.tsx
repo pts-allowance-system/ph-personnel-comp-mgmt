@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -19,87 +20,34 @@ import {
 } from "@/components/ui/dialog"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { FileText, Clock, DollarSign, Download, Eye, TrendingUp, Calendar } from "lucide-react"
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { format, startOfMonth, endOfMonth } from "date-fns"
 import { th } from "date-fns/locale"
 import { formatToThb } from "@/lib/utils/currency-utils"
-import type { AllowanceRequest } from "@/lib/models"
-
-interface DashboardStats {
-  totalRequests: number
-  pendingRequests: number
-  approvedRequests: number
-  rejectedRequests: number
-  totalAmount: number
-  monthlyAmount: number
-  averageProcessingTime: number
-}
-
-interface MonthlyData {
-  month: string
-  requests: number
-  amount: number
-  approved: number
-  rejected: number
-}
-
-interface RequestWithApprover extends AllowanceRequest {
-  approverName?: string
-  approverRole?: string
-  processingTime?: number
-}
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
 
 export default function HrDashboardPage() {
   const { token } = useAuthStore()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
-  const [requests, setRequests] = useState<RequestWithApprover[]>([])
+  const { hrDashboardData, fetchHrDashboardData, loading, error, clearData } = useDataStore()
+  const { stats, monthlyData, requests } = hrDashboardData
+
   const [selectedYear, setSelectedYear] = useState(format(new Date(), "yyyy"))
   const [selectedMonthValue, setSelectedMonthValue] = useState(format(new Date(), "MM"))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [selectedRequest, setSelectedRequest] = useState<RequestWithApprover | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [exporting, setExporting] = useState(false)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [selectedExportStatuses, setSelectedExportStatuses] = useState<string[]>([])
 
   const selectedDateString = `${selectedYear}-${selectedMonthValue}`
 
-  const fetchDashboardData = useCallback(async () => {
-    if (!token) return
-    try {
-      setLoading(true)
-
-      const statsResponse = await fetch("/api/hr/dashboard/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData.stats)
-        setMonthlyData(statsData.monthlyData)
-      }
-
-      const requestsResponse = await fetch("/api/hr/dashboard/requests", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (requestsResponse.ok) {
-        const requestsData = await requestsResponse.json()
-        setRequests(requestsData.requests)
-      }
-    } catch (err) {
-      setError("เกิดข้อผิดพลาดในการโหลดข้อมูลแดชบอร์ด")
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
   useEffect(() => {
-    fetchDashboardData()
-  }, [fetchDashboardData])
+    if (token) {
+      fetchHrDashboardData()
+    }
+    return () => {
+      clearData()
+    }
+  }, [token, fetchHrDashboardData, clearData])
 
   const filteredRequests = useMemo(() => {
     const selectedMonthStart = startOfMonth(new Date(selectedDateString))

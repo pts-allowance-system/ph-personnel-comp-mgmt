@@ -16,18 +16,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 
 export default function SupervisorHistoryPage() {
-  const { user, token } = useAuthStore()
-  const { requests, fetchRequestsByDepartment, loading, error, clearData } = useDataStore()
+  const { user } = useAuthStore()
+  const { requests, fetchRequests, loading, error, clearData } = useDataStore()
 
   useEffect(() => {
-    if (token && user && user.department) {
-      fetchRequestsByDepartment(user.department)
+    if (user?.department) {
+      // fetch all requests for the department
+      fetchRequests({ department: user.department, fetchAll: true })
     }
 
     return () => {
       clearData()
     }
-  }, [token, user, fetchRequestsByDepartment, clearData])
+  }, [user, fetchRequests, clearData])
 
   if (loading) {
     return <div className="flex justify-center p-8">กำลังโหลดคำขอของแผนก...</div>
@@ -78,7 +79,7 @@ export default function SupervisorHistoryPage() {
                     <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/requests/${request.id}`}>
+                        <Link href={`/supervisor/requests/${request.id}`}>
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>

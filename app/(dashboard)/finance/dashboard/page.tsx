@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useDataStore } from "@/lib/store/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -12,77 +13,21 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, L
 import { Download, TrendingUp, Calendar, CreditCard, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns"
 
-interface FinanceStats {
-  totalDisbursements: number
-  pendingDisbursements: number
-  monthlyDisbursements: number
-  totalPendingAmount: number
-  averageDisbursementAmount: number
-  disbursementCount: number
-}
-
-interface MonthlyFinanceData {
-  month: string
-  disbursed: number
-  pending: number
-  count: number
-}
-
-interface DisbursementSummary {
-  employeeName: string
-  department: string
-  amount: number
-  status: string
-  dueDate: string
-  requestId: string
-}
-
 export default function FinanceDashboardPage() {
-  const { user, token } = useAuthStore()
-  const [stats, setStats] = useState<FinanceStats | null>(null)
-  const [monthlyData, setMonthlyData] = useState<MonthlyFinanceData[]>([])
-  const [disbursements, setDisbursements] = useState<DisbursementSummary[]>([])
+  const { token } = useAuthStore()
+  const { financeDashboardData, fetchFinanceDashboardData, loading, error, clearData } = useDataStore()
+  const { stats, monthlyData, disbursements } = financeDashboardData
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"))
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
   const [exporting, setExporting] = useState(false)
 
-  const fetchDashboardData = useCallback(async () => {
-    if (!token) return
-    try {
-      setLoading(true)
-
-      // Fetch finance dashboard statistics
-      const statsResponse = await fetch("/api/finance/dashboard/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData.stats)
-        setMonthlyData(statsData.monthlyData)
-      }
-
-      // Fetch disbursement summary
-      const disbursementsResponse = await fetch("/api/finance/dashboard/disbursements", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (disbursementsResponse.ok) {
-        const disbursementsData = await disbursementsResponse.json()
-        setDisbursements(disbursementsData.disbursements)
-      }
-    } catch (err) {
-      setError("Error loading dashboard data")
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
   useEffect(() => {
-    fetchDashboardData()
-  }, [fetchDashboardData])
+    if (token) {
+      fetchFinanceDashboardData()
+    }
+    return () => {
+      clearData()
+    }
+  }, [token, fetchFinanceDashboardData, clearData])
 
   const handleExportSummary = async (format: "csv" | "excel") => {
     try {

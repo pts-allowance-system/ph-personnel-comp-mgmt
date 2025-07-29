@@ -78,7 +78,7 @@ export default function HrHistoryPage() {
                     <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/requests/${request.id}`}>
+                        <Link href={`/hr/requests/${request.id}`}>
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>
