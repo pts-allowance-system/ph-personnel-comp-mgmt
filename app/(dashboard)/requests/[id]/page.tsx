@@ -274,7 +274,7 @@ export default function RequestDetailsPage() {
 
     return (
       <div className="space-y-6">
-        <Card>
+        <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>
@@ -320,7 +320,7 @@ export default function RequestDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-green-50 border-green-200">
           <CardHeader>
             <CardTitle className="flex items-center"><User className="h-5 w-5 mr-2" />หน้าที่ความรับผิดชอบ</CardTitle>
             <CardDescription>รายละเอียดหน้าที่และภาระงานที่เกี่ยวข้อง</CardDescription>
@@ -356,7 +356,7 @@ export default function RequestDetailsPage() {
         </Card>
 
         {request!.documents && request!.documents.length > 0 && (
-          <Card>
+          <Card className="bg-gray-50 border-gray-200">
             <CardHeader>
               <CardTitle className="flex items-center"><FileText className="h-5 w-5 mr-2" />เอกสารแนบ</CardTitle>
               <CardDescription>เอกสารที่แนบมาพร้อมกับคำขอ</CardDescription>

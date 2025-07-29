@@ -12,6 +12,7 @@ import { FileUploadComponent } from "@/components/file-upload"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
 import { Edit, Loader2, Save, Send, X } from "lucide-react"
 import { UserProfile, AllowanceRequest, Rate } from "@/lib/models"
 
@@ -137,123 +138,119 @@ export function RequestForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFinalSubmit)} className="space-y-8">
+      <form
+        onSubmit={form.handleSubmit(handleFinalSubmit)}
+        className="bg-white p-8 md:p-12 shadow-lg rounded-lg space-y-8 border border-gray-200"
+      >
         {/* Form Header */}
-        <div className="text-center space-y-2">
-          <h2 className="text-xl font-bold">แบบฟอร์มคำขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษของผู้ปฏิบัติงานด้านการสาธารณสุข (พ.ต.ส.)</h2>
-          <p>โรงพยาบาลอุตรดิตถ์</p>
+        <div className="text-center space-y-2 border-b pb-4">
+          <h2 className="text-2xl font-serif font-bold">
+            แบบฟอร์มคำขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษของผู้ปฏิบัติงานด้านการสาธารณสุข (พ.ต.ส.)
+          </h2>
+          <p className="text-lg font-serif">โรงพยาบาลอุตรดิตถ์</p>
         </div>
 
-        {/* Personal Information Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>๑. ข้อมูลผู้ขอรับ</CardTitle>
-              {!isEditingInfo ? (
-                <Button variant="outline" size="sm" onClick={() => setIsEditingInfo(true)}>
-                  <Edit className="mr-2 h-4 w-4" /> แก้ไข
+        {/* Personal Information Section */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-serif font-semibold">๑. ข้อมูลผู้ขอรับ</h3>
+            {!isEditingInfo ? (
+              <Button variant="outline" size="sm" onClick={() => setIsEditingInfo(true)}>
+                <Edit className="mr-2 h-4 w-4" /> แก้ไข
+              </Button>
+            ) : (
+              <div className="space-x-2">
+                <Button variant="default" size="sm" onClick={handleSaveEdit}>
+                  <Save className="mr-2 h-4 w-4" /> บันทึก
                 </Button>
-              ) : (
-                <div className="space-x-2">
-                  <Button variant="default" size="sm" onClick={handleSaveEdit}>
-                    <Save className="mr-2 h-4 w-4" /> บันทึก
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
-                    <X className="mr-2 h-4 w-4" /> ยกเลิก
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="firstName" render={({ field }) => <FormItem><FormLabel>ชื่อ</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="lastName" render={({ field }) => <FormItem><FormLabel>นามสกุล</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="nationalId" render={({ field }) => <FormItem><FormLabel>เลขประจำตัวประชาชน</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="position" render={({ field }) => <FormItem><FormLabel>ตำแหน่ง</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="positionId" render={({ field }) => <FormItem><FormLabel>เลขที่ตำแหน่ง</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="department" render={({ field }) => <FormItem><FormLabel>สังกัด/หน่วยงาน</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="licenseNumber" render={({ field }) => <FormItem><FormLabel>เลขที่ใบประกอบวิชาชีพ</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} /></FormControl><FormMessage /></FormItem>} />
-          </CardContent>
-        </Card>
-
-        {/* Allowance Information Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>๒. ข้อมูลการขอรับเงิน พ.ต.ส.</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField control={form.control} name="employeeType" render={({ field }) => <FormItem><FormLabel>ประเภทบุคลากร <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="doctor">แพทย์</SelectItem><SelectItem value="other">อื่นๆ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="requestType" render={({ field }) => <FormItem><FormLabel>ประเภท พ.ต.ส. <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานที่มีความชำนาญ</SelectItem><SelectItem value="non_specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานในพื้นที่พิเศษ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
-            </div>
-            <FormField control={form.control} name="mainDuties" render={({ field }) => <FormItem><FormLabel>ภาระงานหลักโดยย่อ <span className="text-red-500">*</span></FormLabel><FormControl><Input placeholder="ระบุภาระงานหลัก" {...field} /></FormControl><FormMessage /></FormItem>} />
-            <FormItem>
-              <FormLabel>ภาระงานตามมาตรฐานกำหนดตำแหน่ง</FormLabel>
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  { id: 'operations', label: 'ด้านการปฏิบัติการ' },
-                  { id: 'planning', label: 'ด้านการวางแผน' },
-                  { id: 'coordination', label: 'ด้านการประสานงาน' },
-                  { id: 'service', label: 'ด้านการบริการ' },
-                ] as const).map((duty) => (
-                  <FormField
-                    key={duty.id}
-                    control={form.control}
-                    name={`standardDuties.${duty.id}`}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow">
-                        <FormControl>
-                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>{duty.label}</FormLabel>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                ))}
+                <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                  <X className="mr-2 h-4 w-4" /> ยกเลิก
+                </Button>
               </div>
-              <FormMessage />
-            </FormItem>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField control={form.control} name="allowanceGroup" render={({ field }) => <FormItem><FormLabel>กลุ่ม <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.map(r => r.allowanceGroup))].map((group, index) => (
-                <SelectItem key={`${group}-${index}`} value={group}>{group}</SelectItem>
-              ))}</SelectContent></Select><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="tier" render={({ field }) => <FormItem><FormLabel>ระดับ <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.filter(r => r.allowanceGroup === selectedGroup).map(r => r.tier))].map((tier, index) => (
-                <SelectItem key={`${tier}-${index}`} value={tier}>{tier}</SelectItem>
-              ))}</SelectContent></Select><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="monthlyRate" render={({ field }) => <FormItem><FormLabel>ในอัตราเดือนละ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="number" {...field} readOnly /></FormControl><FormMessage /></FormItem>} />
-            </div>
-            <FormField control={form.control} name="effectiveDate" render={({ field }) => <FormItem><FormLabel>ขอเบิกตั้งแต่วันที่ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="certificate" render={({ field }) => <FormItem><FormLabel>วุฒิบัตร สาขา</FormLabel><FormControl><Input placeholder="ระบุสาขา (ถ้ามี)" {...field} /></FormControl><FormMessage /></FormItem>} />
-          </CardContent>
-        </Card>
+            )}
+          </div>
+          <Separator />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField control={form.control} name="firstName" render={({ field }) => <FormItem><FormLabel>ชื่อ</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="lastName" render={({ field }) => <FormItem><FormLabel>นามสกุล</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="nationalId" render={({ field }) => <FormItem><FormLabel>เลขประจำตัวประชาชน</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="position" render={({ field }) => <FormItem><FormLabel>ตำแหน่ง</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="positionId" render={({ field }) => <FormItem><FormLabel>เลขที่ตำแหน่ง</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="department" render={({ field }) => <FormItem><FormLabel>สังกัด/หน่วยงาน</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="licenseNumber" render={({ field }) => <FormItem><FormLabel>เลขที่ใบประกอบวิชาชีพ</FormLabel><FormControl><Input {...field} value={field.value || ''} disabled={!isEditingInfo} className="bg-gray-50" /></FormControl><FormMessage /></FormItem>} />
+          </div>
+        </div>
 
-        {/* File Attachment */}
-        <Card>
-          <CardHeader>
-            <CardTitle>เอกสารแนบ</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FormField
-              control={form.control}
-              name="documents"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <FileUploadComponent
-                      files={field.value || []}
-                      onFilesChange={field.onChange}
-                      folder="allowance-requests"
-                      maxFiles={5}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
+        {/* Allowance Information Section */}
+        <div className="space-y-4">
+          <h3 className="text-xl font-serif font-semibold">๒. ข้อมูลการขอรับเงิน พ.ต.ส.</h3>
+          <Separator />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField control={form.control} name="employeeType" render={({ field }) => <FormItem><FormLabel>ประเภทบุคลากร <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="doctor">แพทย์</SelectItem><SelectItem value="other">อื่นๆ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="requestType" render={({ field }) => <FormItem><FormLabel>ประเภท พ.ต.ส. <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานที่มีความชำนาญ</SelectItem><SelectItem value="non_specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานในพื้นที่พิเศษ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
+          </div>
+          <FormField control={form.control} name="mainDuties" render={({ field }) => <FormItem><FormLabel>ภาระงานหลักโดยย่อ <span className="text-red-500">*</span></FormLabel><FormControl><Input placeholder="ระบุภาระงานหลัก" {...field} /></FormControl><FormMessage /></FormItem>} />
+          <FormItem>
+            <FormLabel>ภาระงานตามมาตรฐานกำหนดตำแหน่ง</FormLabel>
+            <div className="grid grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50">
+              {([
+                { id: 'operations', label: 'ด้านการปฏิบัติการ' },
+                { id: 'planning', label: 'ด้านการวางแผน' },
+                { id: 'coordination', label: 'ด้านการประสานงาน' },
+                { id: 'service', label: 'ด้านการบริการ' },
+              ] as const).map((duty) => (
+                <FormField
+                  key={duty.id}
+                  control={form.control}
+                  name={`standardDuties.${duty.id}`}
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="font-normal">{duty.label}</FormLabel>
+                    </FormItem>
+                  )}
+                />
+              ))}
+            </div>
+            <FormMessage />
+          </FormItem>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <FormField control={form.control} name="allowanceGroup" render={({ field }) => <FormItem><FormLabel>กลุ่ม <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.map(r => r.allowanceGroup))].map((group, index) => (
+              <SelectItem key={`${group}-${index}`} value={group}>{group}</SelectItem>
+            ))}</SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="tier" render={({ field }) => <FormItem><FormLabel>ระดับ <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.filter(r => r.allowanceGroup === selectedGroup).map(r => r.tier))].map((tier, index) => (
+              <SelectItem key={`${tier}-${index}`} value={tier}>{tier}</SelectItem>
+            ))}</SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="monthlyRate" render={({ field }) => <FormItem><FormLabel>ในอัตราเดือนละ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="number" {...field} readOnly className="bg-gray-100" /></FormControl><FormMessage /></FormItem>} />
+          </div>
+          <FormField control={form.control} name="effectiveDate" render={({ field }) => <FormItem><FormLabel>ขอเบิกตั้งแต่วันที่ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
+          <FormField control={form.control} name="certificate" render={({ field }) => <FormItem><FormLabel>วุฒิบัตร สาขา</FormLabel><FormControl><Input placeholder="ระบุสาขา (ถ้ามี)" {...field} /></FormControl><FormMessage /></FormItem>} />
+        </div>
+
+        {/* File Attachment Section */}
+        <div className="space-y-4">
+          <h3 className="text-xl font-serif font-semibold">เอกสารแนบ</h3>
+          <Separator />
+          <FormField
+            control={form.control}
+            name="documents"
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <FileUploadComponent
+                    files={field.value || []}
+                    onFilesChange={field.onChange}
+                    folder="allowance-requests"
+                    maxFiles={5}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         {/* Footer Warning */}
         <div className="prose prose-sm max-w-none text-gray-600 border-t pt-4 mt-6">
