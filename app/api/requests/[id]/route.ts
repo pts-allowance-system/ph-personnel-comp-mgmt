@@ -1,21 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-
-export const dynamic = "force-dynamic"; // Force dynamic rendering
 import { RequestsDAL } from "@/lib/dal/requests"
 import { verifyToken } from "@/lib/utils/auth-utils"
 import cache from "@/lib/utils/cache"
+import { withValidation } from "@/lib/utils/validation"
+import { updateRequestSchema } from "@/lib/schemas"
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params: paramsPromise }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  // paramsPromise is a Promise, await it to get the actual params
-  console.log("[DEBUG] Route Handler GET: paramsPromise received.");
   try {
-    const params = await paramsPromise;
-    console.log("[DEBUG] Route Handler GET: Resolved params:", JSON.stringify(params, null, 2));
-    const requestIdFromParams = params.id;
-    if (!requestIdFromParams) {
+    const { id } = params;
+    if (!id) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
 
@@ -24,23 +22,20 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const cacheKey = `request:${requestIdFromParams}`;
+    const cacheKey = `request:${id}`;
     const cachedRequest = cache.get(cacheKey);
     if (cachedRequest) {
-      console.log(`[Cache] HIT for key: ${cacheKey}`);
       return NextResponse.json({ request: cachedRequest });
     }
-    console.log(`[Cache] MISS for key: ${cacheKey}`);
 
-    const requestData = await RequestsDAL.findById(requestIdFromParams)
-    console.log("[API_ROUTE_DEBUG] Raw requestData from DAL:", JSON.stringify(requestData, null, 2));
+    const requestData = await RequestsDAL.findById(id)
 
     if (!requestData) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
 
-    // Check permissions
-    if (user.role === "employee" && requestData.employeeId !== user.userId) {
+    // In the JWT, the user's ID is stored in the `id` field.
+    if (user.role === "employee" && requestData.employeeId !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -53,17 +48,13 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+async function patchHandler(
+  request: any,
+  context: { params: { id: string } }
 ) {
-  // context.params is a Promise, await it to get the actual params
-  console.log("[DEBUG] Route Handler PATCH: context.params (Promise) received.");
   try {
-    const params = await context.params;
-    console.log("[DEBUG] Route Handler PATCH: Resolved params:", JSON.stringify(params, null, 2));
-    const requestIdFromParams = params.id;
-    if (!requestIdFromParams) {
+    const { id } = context.params;
+    if (!id) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
 
@@ -72,23 +63,24 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const updates = await request.json()
+    const updates = request.parsedBody;
 
-    const success = await RequestsDAL.update(requestIdFromParams, updates)
+    // Add logic here to check if the user is allowed to update the request
+    // For example, an employee should only be able to update their own draft requests.
+    // An admin or HR person might have more permissions.
+
+    const success = await RequestsDAL.update(id, updates)
 
     if (!success) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 })
+      return NextResponse.json({ error: "Request not found or no changes made" }, { status: 404 })
     }
 
     // Invalidate caches
-    const individualCacheKey = `request:${requestIdFromParams}`;
-    cache.del(individualCacheKey);
-
+    cache.del(`request:${id}`);
     const listCacheKeys = cache.keys().filter(k => k.startsWith('requests:'));
     if (listCacheKeys.length > 0) {
       cache.del(listCacheKeys);
     }
-    console.log(`[Cache] Invalidated cache for ${individualCacheKey} and all 'requests:*' lists.`);
 
     return NextResponse.json({
       success: true,
@@ -99,6 +91,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+export const PATCH = withValidation(updateRequestSchema, patchHandler);
 
 // Handle unsupported HTTP methods
 export async function PUT() {

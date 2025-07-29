@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RatesDAL } from "@/lib/dal/rates"
-import { verifyToken } from "@/lib/utils/auth-utils"
 import cache from "@/lib/utils/cache"
+import { withValidation, NextRequestWithExtras } from "@/lib/utils/validation"
+import { withAuthorization } from "@/lib/utils/authorization"
+import { createRateSchema } from "@/lib/schemas"
+import { verifyToken } from "@/lib/utils/auth-utils"
+import { handleApiError, ApiError } from "@/lib/utils/error-handler"
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      throw new ApiError(401, "Unauthorized");
     }
 
     const { searchParams } = new URL(request.url)
@@ -35,27 +39,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(rates)
     }
   } catch (error) {
-    console.error("Get rates error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequestWithExtras) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const rateData = await request.json()
+    const rateData = request.parsedBody;
     const newRate = await RatesDAL.create(rateData)
 
-    // Invalidate cache
     cache.del(["rates:all", "rates:distinct"])
 
     return NextResponse.json({ rate: newRate }, { status: 201 })
   } catch (error) {
-    console.error("Create rate error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    if ((error as any).code === 'ER_DUP_ENTRY') {
+        throw new ApiError(409, "A rate with the same group, tier, and effective date already exists.");
+    }
+    return handleApiError(error);
   }
 }
+
+export const POST = withAuthorization(['admin'], withValidation(createRateSchema, postHandler));

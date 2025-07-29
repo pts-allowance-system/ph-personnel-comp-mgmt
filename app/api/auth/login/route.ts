@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import { UsersDAL } from "@/lib/dal/users";
+import { RateLimiter } from "@/lib/utils/rate-limiter";
 
 // Use the same secret as the middleware
 if (!process.env.JWT_SECRET) {
@@ -9,7 +10,19 @@ if (!process.env.JWT_SECRET) {
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
+const loginRateLimiter = new RateLimiter({
+  limit: 10, // 10 requests
+  windowMs: 60 * 1000, // 1 minute
+});
+
 export async function POST(request: NextRequest) {
+  const ip = request.ip ?? "127.0.0.1";
+  const { allowed, remaining } = loginRateLimiter.check(ip);
+
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many login attempts. Please try again later." }, { status: 429 });
+  }
+
   try {
     const { nationalId, password } = await request.json();
 
@@ -31,11 +44,7 @@ export async function POST(request: NextRequest) {
     const token = await new SignJWT({
       id: user.id,
       role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      nationalId: user.nationalId,
-      department: user.department,
-      position: user.position,
+      // Keep payload minimal
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -45,8 +54,6 @@ export async function POST(request: NextRequest) {
     // Set HTTP-only cookie
     const response = NextResponse.json({
       success: true,
-      // Include the token in the response for the auth store
-      token: token,
       user: {
         id: user.id,
         nationalId: user.nationalId,
@@ -67,6 +74,10 @@ export async function POST(request: NextRequest) {
       maxAge: 24 * 60 * 60, // 24 hours
       path: "/",
     });
+
+    // Add rate limit headers
+    response.headers.set("X-RateLimit-Limit", "10");
+    response.headers.set("X-RateLimit-Remaining", remaining.toString());
 
     return response;
   } catch (error) {
