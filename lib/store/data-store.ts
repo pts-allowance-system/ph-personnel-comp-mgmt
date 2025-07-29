@@ -368,10 +368,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  clearCurrentRequest: () => {
-    set({ currentRequest: null });
-  },
-
   clearData: () => {
     set({
       requests: [],

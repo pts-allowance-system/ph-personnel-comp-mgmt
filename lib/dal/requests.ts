@@ -87,10 +87,11 @@ export class RequestsDAL {
   }
 
   static async findByUserId(userId: string, fetchAll?: boolean): Promise<AllowanceRequest[]> {
-    let query = this.getFullSelectQuery().where(eq(allowanceRequests.employeeId, userId));
+    const conditions = [eq(allowanceRequests.employeeId, userId)];
     if (!fetchAll) {
-      query = query.where(notInArray(allowanceRequests.status, ['draft', 'archived']));
+      conditions.push(notInArray(allowanceRequests.status, ['draft', 'archived']));
     }
+    const query = this.getFullSelectQuery().where(and(...conditions));
     const rows = await query.orderBy(desc(allowanceRequests.createdAt));
     return Promise.all(rows.map(mapRowToRequest));
   }
@@ -106,11 +107,17 @@ export class RequestsDAL {
     requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "documents" | "employeeName" | "approverName" | "approvedAt" | "approvedBy">
   ): Promise<string> {
     const id = crypto.randomUUID();
-    await db.insert(allowanceRequests).values({
+    const dataToInsert = {
       ...requestData,
       id,
+      effectiveDate: new Date(requestData.effectiveDate),
+      startDate: requestData.startDate ? new Date(requestData.startDate) : null,
+      endDate: requestData.endDate ? new Date(requestData.endDate) : null,
+      monthlyRate: requestData.monthlyRate.toString(),
+      totalAmount: requestData.totalAmount.toString(),
       standardDuties: JSON.stringify(requestData.standardDuties),
-    });
+    };
+    await db.insert(allowanceRequests).values(dataToInsert);
     return id;
   }
 
@@ -118,10 +125,26 @@ export class RequestsDAL {
     id: string,
     updates: Partial<Omit<AllowanceRequest, "documents">>
   ): Promise<boolean> {
-    const { standardDuties, ...otherUpdates } = updates;
+    const { standardDuties, effectiveDate, startDate, endDate, monthlyRate, totalAmount, ...otherUpdates } = updates;
     const dataToUpdate: Record<string, any> = { ...otherUpdates };
+
     if (standardDuties) {
       dataToUpdate.standardDuties = JSON.stringify(standardDuties);
+    }
+    if (effectiveDate) {
+      dataToUpdate.effectiveDate = new Date(effectiveDate);
+    }
+    if (startDate) {
+      dataToUpdate.startDate = new Date(startDate);
+    }
+    if (endDate) {
+      dataToUpdate.endDate = new Date(endDate);
+    }
+    if (monthlyRate) {
+        dataToUpdate.monthlyRate = monthlyRate.toString();
+    }
+    if (totalAmount) {
+        dataToUpdate.totalAmount = totalAmount.toString();
     }
 
     if (Object.keys(dataToUpdate).length === 0) return true;
@@ -130,7 +153,7 @@ export class RequestsDAL {
       .update(allowanceRequests)
       .set(dataToUpdate)
       .where(eq(allowanceRequests.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 
   static async addDocument(

@@ -88,6 +88,7 @@ export class UsersDAL {
       hasSpecialOrder: userData.hasSpecialOrder,
       certifications: userData.certifications,
       specialTasks: userData.specialTasks,
+      updatedAt: new Date(),
     });
 
     return id;

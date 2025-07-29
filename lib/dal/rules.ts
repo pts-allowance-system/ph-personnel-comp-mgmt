@@ -53,13 +53,13 @@ export class RulesDAL {
 
   static async update(id: string, updates: Partial<Rule>): Promise<boolean> {
     const result = await db.update(allowanceRules).set(updates).where(eq(allowanceRules.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 
   static async delete(id: string): Promise<boolean> {
     // This is a soft delete in the original code, but the schema doesn't reflect that.
     // Sticking to a hard delete as per the method name.
     const result = await db.delete(allowanceRules).where(eq(allowanceRules.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 }

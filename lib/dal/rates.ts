@@ -119,6 +119,6 @@ export class RatesDAL {
 
     data.updatedAt = new Date();
     const result = await db.update(allowanceRates).set(data).where(eq(allowanceRates.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 }

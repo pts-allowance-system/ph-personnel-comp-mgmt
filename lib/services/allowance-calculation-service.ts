@@ -21,16 +21,16 @@ export class AllowanceCalculationService {
         if (!Array.isArray(conditionValue)) return false;
         if (Array.isArray(userValue)) {
           // If the user's value is an array (like certifications), check for intersection
-          return userValue.some(val => conditionValue.includes(val));
+          return userValue.some(val => (conditionValue as any[]).includes(val));
         }
-        return conditionValue.includes(userValue as any); // userValue is not an array here
+        return (conditionValue as any[]).includes(userValue); // userValue is not an array here
       case RuleOperator.NotIn:
         if (!Array.isArray(conditionValue)) return false;
         if (Array.isArray(userValue)) {
             // If the user's value is an array, check for no intersection
-            return !userValue.some(val => conditionValue.includes(val));
+            return !userValue.some(val => (conditionValue as any[]).includes(val));
         }
-        return !conditionValue.includes(userValue as any); // userValue is not an array here
+        return !(conditionValue as any[]).includes(userValue); // userValue is not an array here
       default:
         // This should be unreachable if the rule is validated
         return false;
