@@ -1,38 +1,43 @@
 import { UsersDAL } from './users';
-import { db } from '@/lib/db'; // This will be the manual mock
+import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
-// Since we are using a manual mock in __mocks__,
-// we just need to tell Jest to use it.
-jest.mock('@/lib/db');
-
-// Mock bcrypt separately as it's a different module
+// Mock bcrypt, as it's an external dependency.
 jest.mock('bcryptjs');
-
-// Cast the imported db object to our mock type to get type safety
-const mockedDb = db as jest.Mocked<typeof db>;
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
 describe('UsersDAL', () => {
   afterEach(() => {
-    // Reset all mocks after each test to ensure a clean state
-    jest.resetAllMocks();
+    // Restore all mocks after each test
+    jest.restoreAllMocks();
   });
 
   describe('findById', () => {
     it('should return a user when found', async () => {
       const mockUser = { id: '1', nationalId: '123', firstName: 'John', lastName: 'Doe', email: 'j@j.com', role: 'employee' as const, passwordHash: 'hash' };
-      mockedDb.select().from().where().limit.mockResolvedValue([mockUser]);
+      const dbSpy = jest.spyOn(db, 'select').mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockUser]),
+          }),
+        }),
+      } as any);
 
       const user = await UsersDAL.findById('1');
 
       expect(user).toBeDefined();
       expect(user?.id).toBe('1');
-      expect(mockedDb.select).toHaveBeenCalled();
+      expect(dbSpy).toHaveBeenCalled();
     });
 
     it('should return null when user not found', async () => {
-      mockedDb.select().from().where().limit.mockResolvedValue([]);
+      jest.spyOn(db, 'select').mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      } as any);
       const user = await UsersDAL.findById('1');
       expect(user).toBeNull();
     });
@@ -41,7 +46,13 @@ describe('UsersDAL', () => {
   describe('authenticate', () => {
     it('should return a user when credentials are valid', async () => {
       const mockUser = { id: '1', nationalId: '123', firstName: 'John', lastName: 'Doe', email: 'j@j.com', role: 'employee' as const, passwordHash: 'hashedpassword' };
-      mockedDb.select().from().where().limit.mockResolvedValue([mockUser]);
+      jest.spyOn(db, 'select').mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockUser]),
+          }),
+        }),
+      } as any);
       mockedBcrypt.compare.mockResolvedValue(true);
 
       const user = await UsersDAL.authenticate('123', 'password');
@@ -56,27 +67,37 @@ describe('UsersDAL', () => {
         mockedBcrypt.hash.mockResolvedValue('hashedpassword');
         const userData = { nationalId: '123', firstName: 'John', lastName: 'Doe', email: 'j@j.com', role: 'employee' as const, password: 'password' };
 
-        mockedDb.insert().values.mockResolvedValue({ insertId: 1 });
+        const dbSpy = jest.spyOn(db, 'insert').mockReturnValue({
+            values: jest.fn().mockResolvedValue({ insertId: 1 }),
+        } as any);
 
         const userId = await UsersDAL.create(userData);
         expect(userId).toBeDefined();
-        expect(mockedDb.insert).toHaveBeenCalled();
+        expect(dbSpy).toHaveBeenCalled();
     });
   });
 
   describe('update', () => {
     it('should update a user', async () => {
-        mockedDb.update().set().where.mockResolvedValue({ rowsAffected: 1 });
+        const dbSpy = jest.spyOn(db, 'update').mockReturnValue({
+            set: jest.fn().mockReturnValue({
+                where: jest.fn().mockResolvedValue({ rowsAffected: 1 }),
+            }),
+        } as any);
         const updates = { firstName: 'Jane' };
         const success = await UsersDAL.update('1', updates);
         expect(success).toBe(true);
-        expect(mockedDb.update).toHaveBeenCalled();
+        expect(dbSpy).toHaveBeenCalled();
     });
   });
 
   describe('delete', () => {
     it('should soft delete a user', async () => {
-        mockedDb.update().set().where.mockResolvedValue({ rowsAffected: 1 });
+        const dbSpy = jest.spyOn(db, 'update').mockReturnValue({
+            set: jest.fn().mockReturnValue({
+                where: jest.fn().mockResolvedValue({ rowsAffected: 1 }),
+            }),
+        } as any);
         const success = await UsersDAL.delete('1');
         expect(success).toBe(true);
     });
