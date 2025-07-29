@@ -81,7 +81,7 @@ describe('UsersDAL', () => {
     it('should update a user', async () => {
         const dbSpy = jest.spyOn(db, 'update').mockReturnValue({
             set: jest.fn().mockReturnValue({
-                where: jest.fn().mockResolvedValue({ rowsAffected: 1 }),
+                where: jest.fn().mockResolvedValue([{ affectedRows: 1 }]),
             }),
         } as any);
         const updates = { firstName: 'Jane' };
@@ -95,7 +95,7 @@ describe('UsersDAL', () => {
     it('should soft delete a user', async () => {
         const dbSpy = jest.spyOn(db, 'update').mockReturnValue({
             set: jest.fn().mockReturnValue({
-                where: jest.fn().mockResolvedValue({ rowsAffected: 1 }),
+                where: jest.fn().mockResolvedValue([{ affectedRows: 1 }]),
             }),
         } as any);
         const success = await UsersDAL.delete('1');

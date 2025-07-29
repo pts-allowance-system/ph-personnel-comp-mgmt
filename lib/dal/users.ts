@@ -96,12 +96,12 @@ export class UsersDAL {
 
   static async update(id: string, updates: Partial<User>): Promise<boolean> {
     const result = await db.update(users).set(updates).where(eq(users.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 
   static async delete(id: string): Promise<boolean> {
     // This is a soft delete
     const result = await db.update(users).set({ isActive: false }).where(eq(users.id, id));
-    return result.rowsAffected > 0;
+    return result[0].affectedRows > 0;
   }
 }
