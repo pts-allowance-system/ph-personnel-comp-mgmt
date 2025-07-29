@@ -1,8 +1,8 @@
-import { v4 as uuidv4 } from "uuid";
-import { Database, getPool } from "../database";
-import { PoolConnection } from "mysql2/promise";
-import { getCurrentBangkokTimestampForDB } from "../utils/date-utils";
-import { AllowanceRequest, FileUpload, Comment } from "../models";
+import { db } from "@/lib/db";
+import { allowanceRequests, users, requestDocuments, requestComments } from "@/lib/db/schema";
+import { eq, and, desc, notInArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
+import type { AllowanceRequest, FileUpload, Comment } from "../models";
 
 const mapRowToRequest = async (row: any): Promise<AllowanceRequest> => {
   const documents = await RequestsDAL.getRequestDocuments(row.id);
@@ -10,201 +10,157 @@ const mapRowToRequest = async (row: any): Promise<AllowanceRequest> => {
 
   return {
     id: row.id,
-    employeeId: row.employee_id,
-    employeeName: row.employee_name,
+    employeeId: row.employeeId,
+    employeeName: row.employeeName,
     status: row.status,
-    employeeType: row.employee_type,
-    requestType: row.request_type,
+    employeeType: row.employeeType,
+    requestType: row.requestType,
     position: row.position,
     department: row.department,
-    mainDuties: row.main_duties,
-    standardDuties: 
-      row.standard_duties 
-        ? typeof row.standard_duties === 'string' 
-          ? JSON.parse(row.standard_duties) 
-          : row.standard_duties 
+    mainDuties: row.mainDuties,
+    standardDuties:
+      row.standardDuties
+        ? typeof row.standardDuties === 'string'
+          ? JSON.parse(row.standardDuties)
+          : row.standardDuties
         : { operations: false, planning: false, coordination: false, service: false },
-    assignedTask: row.assigned_task,
-    monthlyRate: Number.parseFloat(row.monthly_rate),
-    totalAmount: Number.parseFloat(row.total_amount),
-    effectiveDate: row.effective_date,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    totalDays: row.total_days,
-    allowanceGroup: row.allowance_group,
+    assignedTask: row.assignedTask,
+    monthlyRate: row.monthlyRate ? Number(row.monthlyRate) : 0,
+    totalAmount: row.totalAmount ? Number(row.totalAmount) : 0,
+    effectiveDate: row.effectiveDate,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    totalDays: row.totalDays,
+    allowanceGroup: row.allowanceGroup,
     tier: row.tier,
     notes: row.notes,
     documents,
     comments,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    approvedAt: row.approved_at,
-    approvedBy: row.approved_by,
-    approverName: row.approver_name,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    approvedAt: row.approvedAt,
+    approvedBy: row.approvedBy,
+    approverName: row.approverName,
   };
 };
 
 export class RequestsDAL {
-  private static readonly fullSelectQuery = `
-    SELECT 
-      r.*, 
-      CONCAT(u.firstName, ' ', u.lastName) as employee_name,
-      CONCAT(approver.firstName, ' ', approver.lastName) as approver_name
-    FROM allowance_requests r
-    JOIN users u ON r.employee_id = u.id
-    LEFT JOIN users approver ON r.approved_by = approver.id
-  `;
+  private static getFullSelectQuery() {
+    const approver = alias(users, "approver");
+    return db
+      .select({
+        id: allowanceRequests.id,
+        employeeId: allowanceRequests.employeeId,
+        status: allowanceRequests.status,
+        employeeType: allowanceRequests.employeeType,
+        requestType: allowanceRequests.requestType,
+        position: allowanceRequests.position,
+        department: allowanceRequests.department,
+        mainDuties: allowanceRequests.mainDuties,
+        standardDuties: allowanceRequests.standardDuties,
+        assignedTask: allowanceRequests.assignedTask,
+        monthlyRate: allowanceRequests.monthlyRate,
+        totalAmount: allowanceRequests.totalAmount,
+        effectiveDate: allowanceRequests.effectiveDate,
+        startDate: allowanceRequests.startDate,
+        endDate: allowanceRequests.endDate,
+        totalDays: allowanceRequests.totalDays,
+        allowanceGroup: allowanceRequests.allowanceGroup,
+        tier: allowanceRequests.tier,
+        notes: allowanceRequests.notes,
+        createdAt: allowanceRequests.createdAt,
+        updatedAt: allowanceRequests.updatedAt,
+        approvedAt: allowanceRequests.approvedAt,
+        approvedBy: allowanceRequests.approvedBy,
+        employeeName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        approverName: sql<string>`CONCAT(${approver.firstName}, ' ', ${approver.lastName})`,
+      })
+      .from(allowanceRequests)
+      .leftJoin(users, eq(allowanceRequests.employeeId, users.id))
+      .leftJoin(approver, eq(allowanceRequests.approvedBy, approver.id));
+  }
 
   static async findById(id: string): Promise<AllowanceRequest | null> {
-    const sql = `${this.fullSelectQuery} WHERE r.id = ?`;
-    const row = await Database.queryOne<any>(sql, [id]);
-    if (!row) return null;
-    return mapRowToRequest(row);
+    const rows = await this.getFullSelectQuery().where(eq(allowanceRequests.id, id));
+    if (rows.length === 0) return null;
+    return mapRowToRequest(rows[0]);
   }
 
   static async findByUserId(userId: string, fetchAll?: boolean): Promise<AllowanceRequest[]> {
-    let sql = `${this.fullSelectQuery} WHERE r.employee_id = ?`;
+    let query = this.getFullSelectQuery().where(eq(allowanceRequests.employeeId, userId));
     if (!fetchAll) {
-      sql += ` AND r.status NOT IN ('draft', 'archived')`;
+      query = query.where(notInArray(allowanceRequests.status, ['draft', 'archived']));
     }
-    sql += ` ORDER BY r.created_at DESC`;
-
-    const rows = await Database.query<any>(sql, [userId]);
+    const rows = await query.orderBy(desc(allowanceRequests.createdAt));
     return Promise.all(rows.map(mapRowToRequest));
   }
 
   static async findByStatus(status: string): Promise<AllowanceRequest[]> {
-    const sql = `${this.fullSelectQuery} WHERE r.status = ? ORDER BY r.created_at DESC`;
-    const rows = await Database.query<any>(sql, [status]);
+    const rows = await this.getFullSelectQuery()
+      .where(eq(allowanceRequests.status, status))
+      .orderBy(desc(allowanceRequests.createdAt));
     return Promise.all(rows.map(mapRowToRequest));
   }
 
   static async create(
-    requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "employeeName" | "approverName" | "approvedAt" | "approvedBy" | "dateOfRequest">
+    requestData: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "documents" | "employeeName" | "approverName" | "approvedAt" | "approvedBy">
   ): Promise<string> {
-    const id = uuidv4();
-    const now = getCurrentBangkokTimestampForDB();
-
-    const dataToInsert = {
+    const id = crypto.randomUUID();
+    await db.insert(allowanceRequests).values({
+      ...requestData,
       id,
-      employee_id: requestData.employeeId,
-      status: requestData.status,
-      employee_type: requestData.employeeType,
-      request_type: requestData.requestType,
-      position: requestData.position,
-      department: requestData.department,
-      main_duties: requestData.mainDuties,
-      standard_duties: JSON.stringify(requestData.standardDuties),
-      assigned_task: requestData.assignedTask,
-      monthly_rate: requestData.monthlyRate,
-      total_amount: requestData.totalAmount,
-      effective_date: requestData.effectiveDate,
-      start_date: requestData.startDate,
-      end_date: requestData.endDate,
-      total_days: requestData.totalDays,
-      allowance_group: requestData.allowanceGroup,
-      tier: requestData.tier,
-      notes: requestData.notes,
-      created_at: now,
-      updated_at: now,
-    };
-
-    await Database.insert("allowance_requests", dataToInsert);
-
-    if (requestData.documents && requestData.documents.length > 0) {
-      for (const doc of requestData.documents) {
-        await this.addDocument(id, doc);
-      }
-    }
-
+      standardDuties: JSON.stringify(requestData.standardDuties),
+    });
     return id;
   }
 
   static async update(
     id: string,
-    updates: Partial<AllowanceRequest> & Record<string, any>
+    updates: Partial<Omit<AllowanceRequest, "documents">>
   ): Promise<boolean> {
-    const { documents, ...otherUpdates } = updates;
-
-    const pool = getPool();
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      const mappedUpdates: Record<string, any> = {};
-      if (otherUpdates.status) mappedUpdates.status = otherUpdates.status;
-      if (otherUpdates.employeeType) mappedUpdates.employee_type = otherUpdates.employeeType;
-      if (otherUpdates.requestType) mappedUpdates.request_type = otherUpdates.requestType;
-      if (otherUpdates.position) mappedUpdates.position = otherUpdates.position;
-      if (otherUpdates.department) mappedUpdates.department = otherUpdates.department;
-      if (otherUpdates.mainDuties) mappedUpdates.main_duties = otherUpdates.mainDuties;
-      if (otherUpdates.standardDuties) mappedUpdates.standard_duties = JSON.stringify(otherUpdates.standardDuties);
-      if (otherUpdates.assignedTask) mappedUpdates.assigned_task = otherUpdates.assignedTask;
-      if (otherUpdates.monthlyRate) mappedUpdates.monthly_rate = otherUpdates.monthlyRate;
-      if (otherUpdates.totalAmount) mappedUpdates.total_amount = otherUpdates.totalAmount;
-      if (otherUpdates.effectiveDate) mappedUpdates.effective_date = otherUpdates.effectiveDate;
-      if (otherUpdates.startDate) mappedUpdates.start_date = otherUpdates.startDate;
-      if (otherUpdates.endDate) mappedUpdates.end_date = otherUpdates.endDate;
-      if (otherUpdates.totalDays) mappedUpdates.total_days = otherUpdates.totalDays;
-      if (otherUpdates.allowanceGroup) mappedUpdates.allowance_group = otherUpdates.allowanceGroup;
-      if (otherUpdates.tier) mappedUpdates.tier = otherUpdates.tier;
-      if (otherUpdates.notes) mappedUpdates.notes = otherUpdates.notes;
-      if (otherUpdates.approvedBy) mappedUpdates.approved_by = otherUpdates.approvedBy;
-      if (otherUpdates.approvedAt) mappedUpdates.approved_at = otherUpdates.approvedAt;
-
-      if (Object.keys(mappedUpdates).length > 0) {
-        mappedUpdates.updated_at = getCurrentBangkokTimestampForDB();
-        await Database.update("allowance_requests", mappedUpdates, { id }, connection);
-      }
-
-      if (documents !== undefined) {
-        await connection.execute("DELETE FROM request_documents WHERE request_id = ?", [id]);
-        if (Array.isArray(documents) && documents.length > 0) {
-          for (const doc of documents) {
-            await this.addDocument(id, doc, connection);
-          }
-        }
-      }
-
-      await connection.commit();
-      return true;
-    } catch (error) {
-      await connection.rollback();
-      console.error("DAL Error: Failed to update request:", error);
-      throw new Error("Failed to update request due to a database error.");
-    } finally {
-      connection.release();
+    const { standardDuties, ...otherUpdates } = updates;
+    const dataToUpdate: Record<string, any> = { ...otherUpdates };
+    if (standardDuties) {
+      dataToUpdate.standardDuties = JSON.stringify(standardDuties);
     }
+
+    if (Object.keys(dataToUpdate).length === 0) return true;
+
+    const result = await db
+      .update(allowanceRequests)
+      .set(dataToUpdate)
+      .where(eq(allowanceRequests.id, id));
+    return result.rowsAffected > 0;
   }
 
   static async addDocument(
     requestId: string,
-    document: FileUpload,
-    connection?: PoolConnection
+    document: FileUpload
   ): Promise<void> {
-    const data = {
-      id: uuidv4(),
-      request_id: requestId,
-      file_name: document.name,
-      file_url: document.url,
-      file_path: document.path,
-      file_size: document.size,
-      file_type: document.type,
-    };
-    await Database.insert("request_documents", data, connection);
+    await db.insert(requestDocuments).values({
+      id: crypto.randomUUID(),
+      requestId: requestId,
+      fileName: document.name,
+      fileUrl: document.url,
+      filePath: document.path,
+      fileSize: document.size,
+      fileType: document.type,
+    });
   }
 
   static async getRequestDocuments(requestId: string): Promise<FileUpload[]> {
-    const sql = `SELECT * FROM request_documents WHERE request_id = ? ORDER BY uploaded_at`;
-    const docs = await Database.query<any>(sql, [requestId]);
+    const docs = await db
+      .select()
+      .from(requestDocuments)
+      .where(eq(requestDocuments.requestId, requestId))
+      .orderBy(desc(requestDocuments.uploadedAt));
     return docs.map((doc) => ({
       id: doc.id,
-      name: doc.file_name,
-      url: doc.file_url,
-      path: doc.file_path,
-      size: doc.file_size,
-      type: doc.file_type,
-      uploadedAt: doc.uploaded_at,
+      name: doc.fileName,
+      url: doc.fileUrl,
+      path: doc.filePath,
+      size: doc.fileSize,
+      type: doc.fileType,
     }));
   }
 
@@ -213,45 +169,49 @@ export class RequestsDAL {
     authorId: string,
     content: string
   ): Promise<string> {
-    const id = Database.generateId();
-    const data = {
+    const id = crypto.randomUUID();
+    await db.insert(requestComments).values({
       id,
-      request_id: requestId,
-      user_id: authorId,
+      requestId: requestId,
+      userId: authorId,
       message: content,
-      created_at: getCurrentBangkokTimestampForDB(),
-    };
-    await Database.insert("request_comments", data);
+    });
     return id;
   }
 
   static async getRequestComments(requestId: string): Promise<Comment[]> {
-    const sql = `
-      SELECT c.id, c.request_id, c.user_id, c.message, c.created_at, CONCAT(u.firstName, ' ', u.lastName) as author_name
-      FROM request_comments c
-      JOIN users u ON c.user_id = u.id
-      WHERE c.request_id = ?
-      ORDER BY c.created_at
-    `;
-    const rows = await Database.query<any>(sql, [requestId]);
+    const rows = await db
+      .select({
+        id: requestComments.id,
+        requestId: requestComments.requestId,
+        userId: requestComments.userId,
+        message: requestComments.message,
+        createdAt: requestComments.createdAt,
+        authorName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(requestComments)
+      .leftJoin(users, eq(requestComments.userId, users.id))
+      .where(eq(requestComments.requestId, requestId))
+      .orderBy(desc(requestComments.createdAt));
+
     return rows.map((row) => ({
       id: row.id,
-      requestId: row.request_id,
-      user: { id: row.user_id, name: row.author_name },
+      requestId: row.requestId,
+      user: { id: row.userId, name: row.authorName },
       content: row.message,
-      timestamp: row.created_at,
+      timestamp: row.createdAt?.toISOString() || '',
     }));
   }
 
   static async findByDepartment(department: string): Promise<AllowanceRequest[]> {
-    const sql = `${this.fullSelectQuery} WHERE u.department = ? ORDER BY r.created_at DESC`;
-    const rows = await Database.query<any>(sql, [department]);
+    const rows = await this.getFullSelectQuery()
+      .where(eq(users.department, department))
+      .orderBy(desc(allowanceRequests.createdAt));
     return Promise.all(rows.map(mapRowToRequest));
   }
 
   static async findAllWithDetails(): Promise<AllowanceRequest[]> {
-    const sql = `${this.fullSelectQuery} ORDER BY r.created_at DESC`;
-    const rows = await Database.query<any>(sql);
+    const rows = await this.getFullSelectQuery().orderBy(desc(allowanceRequests.createdAt));
     return Promise.all(rows.map(mapRowToRequest));
   }
 }

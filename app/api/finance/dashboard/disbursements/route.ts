@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { Database } from "@/lib/database"
+import { db } from "@/lib/db"
+import { allowanceRequests, users } from "@/lib/db/schema"
 import { verifyToken } from "@/lib/utils/auth-utils"
+import { eq, inArray, sql } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,32 +11,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get disbursement summary
-    const query = `
-      SELECT 
-        r.id as requestId,
-        CONCAT(u.firstName, ' ', u.lastName) as employeeName,
-        u.department,
-        r.total_amount as amount,
-        r.status,
-        DATE_ADD(r.updated_at, INTERVAL 30 DAY) as dueDate,
-        r.created_at
-      FROM allowance_requests r
-      JOIN users u ON r.employee_id = u.id
-      WHERE r.status IN ('hr-checked', 'disbursed')
-      ORDER BY r.updated_at DESC
-    `
+    // Get disbursement summary using Drizzle ORM
+    const disbursements = await db
+      .select({
+        requestId: allowanceRequests.id,
+        employeeName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        department: users.department,
+        amount: allowanceRequests.totalAmount,
+        status: allowanceRequests.status,
+        dueDate: sql<string>`DATE_ADD(${allowanceRequests.updatedAt}, INTERVAL 30 DAY)`,
+        createdAt: allowanceRequests.createdAt,
+      })
+      .from(allowanceRequests)
+      .leftJoin(users, eq(allowanceRequests.employeeId, users.id))
+      .where(inArray(allowanceRequests.status, ["hr-checked", "disbursed"]))
+      .orderBy(sql`${allowanceRequests.updatedAt} DESC`);
 
-    const disbursements = await Database.query(query)
-
-    const formattedDisbursements = disbursements.map((d: any) => ({
-      requestId: d.requestId,
-      employeeName: d.employeeName,
+    const formattedDisbursements = disbursements.map((d) => ({
+      ...d,
       department: d.department || "Unknown",
-      amount: Number.parseFloat(d.amount),
-      status: d.status,
-      dueDate: d.dueDate,
-    }))
+      amount: d.amount ? Number.parseFloat(d.amount) : 0,
+    }));
 
     return NextResponse.json({ disbursements: formattedDisbursements })
   } catch (error) {

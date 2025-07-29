@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { Database } from "@/lib/database"
+import { db } from "@/lib/db"
+import { allowanceRequests } from "@/lib/db/schema"
 import { verifyToken } from "@/lib/utils/auth-utils"
-import { subMonths, format } from "date-fns"
+import { subMonths, format, startOfMonth, endOfMonth } from "date-fns"
+import { sql, sum, count, avg, and, gte, lte, inArray, eq } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,50 +13,49 @@ export async function GET(request: NextRequest) {
     }
 
     // Get overall statistics
-    const statsQuery = `
-      SELECT 
-        SUM(CASE WHEN status = 'disbursed' THEN total_amount ELSE 0 END) as totalDisbursements,
-        COUNT(CASE WHEN status = 'hr-checked' THEN 1 END) as pendingDisbursements,
-        SUM(CASE WHEN status = 'hr-checked' THEN total_amount ELSE 0 END) as totalPendingAmount,
-        AVG(CASE WHEN status = 'disbursed' THEN total_amount ELSE NULL END) as averageDisbursementAmount,
-        COUNT(CASE WHEN status = 'disbursed' THEN 1 END) as disbursementCount
-      FROM allowance_requests
-    `
-
-    const [statsResult] = await Database.query(statsQuery)
+    const [statsResult] = await db
+      .select({
+        totalDisbursements: sum(sql`CASE WHEN status = 'disbursed' THEN total_amount ELSE 0 END`),
+        pendingDisbursements: count(sql`CASE WHEN status = 'hr-checked' THEN 1 END`),
+        totalPendingAmount: sum(sql`CASE WHEN status = 'hr-checked' THEN total_amount ELSE 0 END`),
+        averageDisbursementAmount: avg(sql`CASE WHEN status = 'disbursed' THEN total_amount ELSE NULL END`),
+        disbursementCount: count(sql`CASE WHEN status = 'disbursed' THEN 1 END`),
+      })
+      .from(allowanceRequests);
 
     // Get monthly data for the last 12 months
     const monthlyData = []
     for (let i = 11; i >= 0; i--) {
       const date = subMonths(new Date(), i)
-      const monthStart = format(date, "yyyy-MM-01")
-      const monthEnd = format(new Date(date.getFullYear(), date.getMonth() + 1, 0), "yyyy-MM-dd")
+      const monthStart = startOfMonth(date)
+      const monthEnd = endOfMonth(date)
 
-      const monthlyQuery = `
-        SELECT 
-          SUM(CASE WHEN status = 'disbursed' THEN total_amount ELSE 0 END) as disbursed,
-          SUM(CASE WHEN status = 'hr-checked' THEN total_amount ELSE 0 END) as pending,
-          COUNT(CASE WHEN status IN ('disbursed', 'hr-checked') THEN 1 END) as count
-        FROM allowance_requests
-        WHERE created_at >= ? AND created_at <= ?
-      `
-
-      const [monthResult] = await Database.query(monthlyQuery, [monthStart, monthEnd + " 23:59:59"])
+      const [monthResult] = await db
+        .select({
+          disbursed: sum(sql`CASE WHEN status = 'disbursed' THEN total_amount ELSE 0 END`),
+          pending: sum(sql`CASE WHEN status = 'hr-checked' THEN total_amount ELSE 0 END`),
+          count: count(sql`CASE WHEN status IN ('disbursed', 'hr-checked') THEN 1 END`),
+        })
+        .from(allowanceRequests)
+        .where(and(
+          gte(allowanceRequests.createdAt, monthStart),
+          lte(allowanceRequests.createdAt, monthEnd)
+        ));
 
       monthlyData.push({
         month: format(date, "MMM yyyy"),
-        disbursed: monthResult.disbursed || 0,
-        pending: monthResult.pending || 0,
+        disbursed: Number(monthResult.disbursed) || 0,
+        pending: Number(monthResult.pending) || 0,
         count: monthResult.count || 0,
       })
     }
 
     return NextResponse.json({
       stats: {
-        totalDisbursements: statsResult.totalDisbursements || 0,
+        totalDisbursements: Number(statsResult.totalDisbursements) || 0,
         pendingDisbursements: statsResult.pendingDisbursements || 0,
-        totalPendingAmount: statsResult.totalPendingAmount || 0,
-        averageDisbursementAmount: Math.round(statsResult.averageDisbursementAmount || 0),
+        totalPendingAmount: Number(statsResult.totalPendingAmount) || 0,
+        averageDisbursementAmount: Math.round(Number(statsResult.averageDisbursementAmount) || 0),
         disbursementCount: statsResult.disbursementCount || 0,
       },
       monthlyData,

@@ -86,7 +86,7 @@ export function DocumentViewer({ documents, title = "Documents" }: DocumentViewe
               <Badge className={getFileTypeColor(doc.type)}>{getFileTypeLabel(doc.type)}</Badge>
             </div>
 
-            <div className="text-xs text-gray-500 mb-3">Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</div>
+            {doc.uploadedAt && <div className="text-xs text-gray-500 mb-3">Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</div>}
 
             <div className="flex space-x-2">
               <Dialog>

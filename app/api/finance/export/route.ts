@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { Database } from "@/lib/database"
+import { db } from "@/lib/db"
+import { allowanceRequests, users } from "@/lib/db/schema"
 import { verifyToken } from "@/lib/utils/auth-utils"
 import { format, startOfMonth, endOfMonth } from "date-fns"
+import { eq, inArray, and, gte, lte, sql } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,34 +19,34 @@ export async function GET(request: NextRequest) {
     const startDate = startOfMonth(new Date(month + "-01"))
     const endDate = endOfMonth(new Date(month + "-01"))
 
-    // Get disbursement data for the month
-    const query = `
-      SELECT 
-        r.id,
-        CONCAT(u.firstName, ' ', u.lastName) as employee_name,
-        u.department,
-        u.national_id,
-        r.group_name,
-        r.tier,
-        r.start_date,
-        r.end_date,
-        r.total_amount,
-        r.status,
-        r.reference_number,
-        r.disbursement_date,
-        r.created_at,
-        r.updated_at
-      FROM allowance_requests r
-      JOIN users u ON r.employee_id = u.id
-      WHERE r.status IN ('hr-checked', 'disbursed')
-        AND (r.updated_at >= ? AND r.updated_at <= ?)
-      ORDER BY r.updated_at DESC
-    `
-
-    const disbursements = await Database.query(query, [
-      format(startDate, "yyyy-MM-dd HH:mm:ss"),
-      format(endDate, "yyyy-MM-dd HH:mm:ss"),
-    ])
+    // Get disbursement data for the month using Drizzle
+    const disbursements = await db
+      .select({
+        id: allowanceRequests.id,
+        employee_name: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        department: users.department,
+        national_id: users.nationalId,
+        allowance_group: allowanceRequests.allowanceGroup,
+        tier: allowanceRequests.tier,
+        start_date: allowanceRequests.startDate,
+        end_date: allowanceRequests.endDate,
+        total_amount: allowanceRequests.totalAmount,
+        status: allowanceRequests.status,
+        reference_number: allowanceRequests.referenceNumber,
+        disbursement_date: allowanceRequests.disbursementDate,
+        created_at: allowanceRequests.createdAt,
+        updated_at: allowanceRequests.updatedAt,
+      })
+      .from(allowanceRequests)
+      .leftJoin(users, eq(allowanceRequests.employeeId, users.id))
+      .where(
+        and(
+          inArray(allowanceRequests.status, ["hr-checked", "disbursed"]),
+          gte(allowanceRequests.updatedAt, startDate),
+          lte(allowanceRequests.updatedAt, endDate)
+        )
+      )
+      .orderBy(sql`${allowanceRequests.updatedAt} DESC`);
 
     const headers = [
       "Request ID",
@@ -65,13 +67,13 @@ export async function GET(request: NextRequest) {
 
     const csvContent = [
       headers.join(","),
-      ...disbursements.map((req: any) =>
+      ...disbursements.map((req) =>
         [
           req.id,
           `"${req.employee_name}"`,
           req.national_id,
           `"${req.department || ""}"`,
-          req.group_name,
+          req.allowance_group,
           req.tier,
           req.start_date,
           req.end_date,

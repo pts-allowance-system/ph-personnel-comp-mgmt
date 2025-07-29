@@ -1,29 +1,34 @@
+export type UserRole = "employee" | "supervisor" | "hr" | "finance" | "admin";
+
 export interface User {
-  id: string
-  nationalId: string
-  firstName: string
-  lastName: string
-  email: string
-  role: "employee" | "supervisor" | "hr" | "finance" | "admin"
-  department?: string
-  position?: string
-  positionId?: string
-  licenseNumber?: string
+  id: string;
+  nationalId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  department?: string;
+  position?: string;
+  positionId?: string;
+  licenseNumber?: string;
   hasSpecialOrder?: boolean;
   certifications?: string[];
   specialTasks?: string[];
-  specializations?: string[]
-  isActive: boolean
+  isActive: boolean;
+}
+
+export interface UserProfile extends Omit<User, "id" | "role" | "isActive"> {
+  allowanceGroup?: string;
+  tier?: string;
 }
 
 export enum RuleOperator {
-  Equal = 'equal',
-  NotEqual = 'notEqual',
-  In = 'in',
-  NotIn = 'notIn',
+  Equal = "equal",
+  NotEqual = "notEqual",
+  In = "in",
+  NotIn = "notIn",
 }
 
-// A value can be a string, number, boolean, or an array of those.
 type RuleValue = string | number | boolean | string[] | number[];
 
 export interface RuleCondition {
@@ -52,35 +57,15 @@ export interface Rule {
   outcome: RuleOutcome;
 }
 
-export interface FileUpload {
-  id: string
-  name: string
-  url: string
-  path: string
-  size: number
-  type: string
-  uploadedAt: string
-}
-
 export interface AllowanceRequest {
   id: string;
-  firstName?: string;
-  lastName?: string;
   employeeId: string;
-  employeeName: string;
+  employeeName?: string;
   status: string;
-  documents: FileUpload[];
-  notes?: string;
-  comments?: Comment[];
-  createdAt?: string;
-  updatedAt?: string;
-  approvedAt?: string;
-  approvedBy?: string;
-  approverName?: string;
   employeeType: string;
   requestType: string;
-  position: string;
-  department: string;
+  position?: string;
+  department?: string;
   mainDuties: string;
   standardDuties: {
     operations: boolean;
@@ -88,7 +73,7 @@ export interface AllowanceRequest {
     coordination: boolean;
     service: boolean;
   };
-  assignedTask: string;
+  assignedTask?: string;
   monthlyRate: number;
   totalAmount: number;
   effectiveDate: string;
@@ -97,24 +82,42 @@ export interface AllowanceRequest {
   totalDays?: number;
   allowanceGroup?: string;
   tier?: string;
+  notes?: string;
+  documents: FileUpload[];
+  comments: Comment[];
+  createdAt?: string;
+  updatedAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  approverName?: string;
 }
 
-export type UserRole = "employee" | "supervisor" | "hr" | "finance" | "admin";
+export interface FileUpload {
+  id: string;
+  name: string;
+  url: string;
+  path: string;
+  size: number;
+  type: string;
+  uploadedAt?: string;
+}
 
 export interface Comment {
   id: string;
   requestId: string;
-  user: { id: string; name: string };
-  timestamp: string;
+  user: {
+    id: string;
+    name: string;
+  };
   content: string;
-  message?: string;
+  timestamp: string;
 }
 
 export interface Rate {
-  id: string
-  allowanceGroup: string
-  tier: string
-  monthlyRate: number
-  effectiveDate: string
-  isActive: boolean
+  id: string;
+  allowanceGroup: string;
+  tier: string;
+  monthlyRate: number;
+  effectiveDate: string;
+  isActive: boolean;
 }

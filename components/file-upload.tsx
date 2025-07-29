@@ -209,7 +209,8 @@ export function FileUploadComponent({
                   <div>
                     <div className="text-sm font-medium text-gray-900">{file.name}</div>
                     <div className="text-xs text-gray-500">
-                      {formatFileSize(file.size)} • {new Date(file.uploadedAt).toLocaleDateString()}
+                      {formatFileSize(file.size)}
+                      {file.uploadedAt && ` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
                     </div>
                   </div>
                 </div>

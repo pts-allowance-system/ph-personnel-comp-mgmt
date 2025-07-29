@@ -23,6 +23,7 @@ import { FileText, Clock, DollarSign, Download, Eye, TrendingUp, Calendar } from
 import { format, startOfMonth, endOfMonth } from "date-fns"
 import { th } from "date-fns/locale"
 import { formatToThb } from "@/lib/utils/currency-utils"
+import type { Comment } from "@/lib/models"
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
 
@@ -91,8 +92,7 @@ export default function HrDashboardPage() {
 
       setIsExportDialogOpen(false)
     } catch (err) {
-      setError("การส่งออกล้มเหลว")
-      console.error(err)
+      console.error("Export failed:", err)
     } finally {
       setExporting(false)
     }
@@ -421,7 +421,7 @@ export default function HrDashboardPage() {
                               <div>
                                 <label className="text-sm font-medium text-gray-500">ประวัติความคิดเห็น</label>
                                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
-                                  {selectedRequest.comments.map((comment) => (
+                                  {selectedRequest.comments.map((comment: Comment) => (
                                     <div key={comment.id} className="border-l-4 border-blue-200 pl-3 py-2">
                                       <div className="flex justify-between text-xs text-gray-500">
                                         <span>{comment.user.name}</span>
@@ -437,7 +437,7 @@ export default function HrDashboardPage() {
                             <div className="mt-4">
                               <h4 className="font-medium text-gray-800">ประวัติการแสดงความคิดเห็น</h4>
                               <ul className="mt-2 space-y-3">
-                                {selectedRequest.comments?.map((comment, index) => (
+                                {selectedRequest.comments?.map((comment: Comment, index: number) => (
                                   <li key={index} className="rounded-lg bg-gray-50 p-3">
                                     <p className="text-sm font-medium text-gray-700">{comment.user.name}</p>
                                     <p className="text-xs text-gray-500">{format(new Date(comment.timestamp), "PPp")}</p>

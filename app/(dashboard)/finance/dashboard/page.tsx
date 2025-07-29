@@ -52,8 +52,7 @@ export default function FinanceDashboardPage() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      setError("Export failed")
-      console.error(err)
+      console.error("Export failed:", err)
     } finally {
       setExporting(false)
     }
