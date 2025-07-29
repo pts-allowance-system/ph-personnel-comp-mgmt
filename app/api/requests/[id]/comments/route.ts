@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
 import { verifyToken } from "@/lib/utils/auth-utils"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
-    const { id } = await params
+    const { id } = params
     const user = await verifyToken(request)
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Comment message is required" }, { status: 400 })
     }
 
-    await RequestsDAL.addComment(id, user.userId, message)
+    await RequestsDAL.addComment(id, user.id, message)
 
     return NextResponse.json({
       success: true,

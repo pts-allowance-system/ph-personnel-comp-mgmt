@@ -5,7 +5,7 @@ import { UsersDAL } from "@/lib/dal/users"
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 
 interface TokenPayload {
-  userId: string
+  id: string
   role: string
   nationalId: string
   firstName: string
@@ -28,7 +28,7 @@ export async function verifyToken(request: NextRequest): Promise<TokenPayload | 
     // The payload from the middleware already contains what we need.
     // We trust the middleware to have performed the necessary checks.
     return {
-      userId: userPayload.id, // Map 'id' from payload to 'userId'
+      id: userPayload.id,
       role: userPayload.role,
       nationalId: userPayload.nationalId,
       firstName: userPayload.firstName,

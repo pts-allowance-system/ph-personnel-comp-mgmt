@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any,
 ) {
   try {
     const { id } = params;
@@ -50,7 +50,7 @@ export async function GET(
 
 async function patchHandler(
   request: any,
-  context: { params: { id: string } }
+  context: any,
 ) {
   try {
     const { id } = context.params;

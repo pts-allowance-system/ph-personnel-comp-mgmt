@@ -2,6 +2,15 @@ import { Database } from "../database";
 import { Rule } from "../models";
 
 export class RulesDAL {
+  static async findAll(): Promise<Rule[]> {
+    const sql = `
+      SELECT id, name, description, priority, conditions, outcome, isActive
+      FROM allowance_rules
+      ORDER BY priority DESC
+    `;
+    return await Database.query<Rule>(sql);
+  }
+
   static async findAllActive(): Promise<Rule[]> {
     const sql = `
       SELECT id, name, description, priority, conditions, outcome, isActive

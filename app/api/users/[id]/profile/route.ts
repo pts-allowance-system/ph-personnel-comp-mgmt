@@ -6,12 +6,12 @@ import cache from "@/lib/utils/cache";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any,
 ) {
   // Even if the body is not used, awaiting it resolves a Next.js issue
   // where params are accessed before the request is fully processed.
   await request.blob();
-  const { id } = await params;
+  const { id } = params;
 
   if (!id) {
     return NextResponse.json({ error: "User ID is required" }, { status: 400 });
@@ -45,13 +45,13 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any,
 ) {
   const { id } = params;
 
   try {
     const user = await verifyToken(request);
-    if (!user || user.userId !== id) {
+    if (!user || user.id !== id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

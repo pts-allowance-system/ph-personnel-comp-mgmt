@@ -16,7 +16,7 @@ const loginRateLimiter = new RateLimiter({
 });
 
 export async function POST(request: NextRequest) {
-  const ip = request.ip ?? "127.0.0.1";
+  const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
   const { allowed, remaining } = loginRateLimiter.check(ip);
 
   if (!allowed) {

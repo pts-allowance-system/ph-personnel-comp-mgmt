@@ -3,9 +3,9 @@ import { RequestsDAL } from "@/lib/dal/requests"
 import { verifyToken } from "@/lib/utils/auth-utils"
 import type { FileUpload } from "@/lib/models"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: any) {
   try {
-    const { id } = await params
+    const { id } = params
     const user = await verifyToken(request)
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { RulesDAL } from "@/lib/dal/rules"
 import { verifyToken } from "@/lib/utils/auth-utils"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: any) {
   try {
     const user = await verifyToken(request)
     if (!user || user.role !== "admin") {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: any) {
   try {
     const user = await verifyToken(request)
     if (!user || user.role !== "admin") {
