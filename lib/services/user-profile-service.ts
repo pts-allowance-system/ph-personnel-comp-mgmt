@@ -9,7 +9,7 @@ export class UserProfileService {
       return null;
     }
 
-    const { allowanceGroup, tier } = AllowanceCalculationService.calculate(user);
+    const { allowanceGroup, tier } = await AllowanceCalculationService.calculate(user);
 
     return {
       id: user.id,

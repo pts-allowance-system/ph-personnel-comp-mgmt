@@ -1,24 +1,3 @@
-export enum RuleOperator {
-  Equal = 'equal',
-  NotEqual = 'notEqual',
-  In = 'in',
-  NotIn = 'notIn',
-}
-
-export interface RuleCondition {
-  fact: 'position' | 'department';
-  operator: RuleOperator;
-  value: any;
-}
-
-export interface RuleEvent {
-  type: string;
-  params: {
-    group: string;
-    tier: string;
-  };
-}
-
 export interface User {
   id: string
   nationalId: string
@@ -35,6 +14,37 @@ export interface User {
   specialTasks?: string[];
   specializations?: string[]
   isActive: boolean
+}
+
+export enum RuleOperator {
+  Equal = 'equal',
+  NotEqual = 'notEqual',
+  In = 'in',
+  NotIn = 'notIn',
+}
+
+export interface RuleCondition {
+  fact: keyof User;
+  operator: RuleOperator;
+  value: any;
+}
+
+export interface RuleEvent {
+  type: string;
+  params: {
+    group: string;
+    tier: string;
+  };
+}
+
+export interface Rule {
+  id: string;
+  name: string;
+  description?: string;
+  priority: number;
+  isActive: boolean;
+  conditions: any;
+  outcome: any;
 }
 
 export interface FileUpload {
@@ -106,17 +116,6 @@ export interface Rate {
   monthlyRate: number
   effectiveDate: string
   isActive: boolean
-}
-
-export interface Rule {
-  id: string;
-  name: string;
-  description?: string;
-  isActive: boolean;
-  conditions: {
-    all: RuleCondition[];
-    event: RuleEvent;
-  };
 }
 
 export interface UserProfile {

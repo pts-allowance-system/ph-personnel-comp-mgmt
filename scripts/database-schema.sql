@@ -35,7 +35,9 @@ CREATE TABLE allowance_rules (
     id CHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    conditions LONGTEXT NOT NULL,
+    priority INT NOT NULL DEFAULT 0,
+    conditions JSON NOT NULL,
+    outcome JSON NOT NULL,
     isActive BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
