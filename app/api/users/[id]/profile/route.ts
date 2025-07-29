@@ -7,11 +7,11 @@ import { User } from "@/lib/models";
 
 export async function GET(
   request: NextRequest,
-  { params }: any,
+  context: { params: Promise<{ id: string }> }
 ) {
-  // Ensure params are resolved before use
-  await request.text();
-  const { id } = params;
+  const { id } = await context.params;
+  // By correctly typing params, Next.js ensures it's populated.
+  // The await request.text() is a workaround that is no longer needed with proper typing.
 
   if (!id) {
     return NextResponse.json({ error: "User ID is required" }, { status: 400 });
@@ -53,9 +53,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: any,
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await context.params;
   try {
     // Await the body first to ensure params are populated
     const body = await request.json();

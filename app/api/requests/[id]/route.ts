@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: any,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }
@@ -50,10 +50,10 @@ export async function GET(
 
 async function patchHandler(
   request: any,
-  context: any,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
     }

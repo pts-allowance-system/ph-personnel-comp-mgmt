@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
-    "build": "JWT_SECRET=dummy-secret-for-build next build",
-    "start": "next start --hostname 0.0.0.0",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "lint": "next lint",
     "test": "jest",
     "db:generate": "drizzle-kit generate"

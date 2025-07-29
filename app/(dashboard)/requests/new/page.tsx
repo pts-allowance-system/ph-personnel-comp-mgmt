@@ -67,14 +67,15 @@ export default function NewRequestPage() {
   
   // Check authentication status on component mount
   useEffect(() => {
-    // Get the fresh authentication state
-    const { isAuthenticated, token } = useAuthStore.getState();
-    if (!isAuthenticated || !token) {
-      // Redirect to login if not authenticated
-      console.log("Not authenticated, redirecting to login");
-      router.replace("/login?redirect=/requests/new");
+    // Wait until the initial profile loading is complete before checking auth state
+    if (!isLoading) {
+      const { isAuthenticated } = useAuthStore.getState();
+      if (!isAuthenticated) {
+        console.log("Not authenticated after profile load, redirecting to login");
+        router.replace("/login?redirect=/requests/new");
+      }
     }
-  }, [router]);
+  }, [isLoading, router]);
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState("")
@@ -208,13 +209,10 @@ export default function NewRequestPage() {
       setIsSubmitting(true);
       
       // Check authentication status again before submission
-      const authState = useAuthStore.getState();
-      console.log("Auth state before submission:", { 
-        isAuthenticated: authState.isAuthenticated, 
-        hasToken: !!authState.token 
-      });
+      const { isAuthenticated, token } = useAuthStore.getState();
+      console.log("Auth state before submission:", { isAuthenticated, hasToken: !!token });
       
-      if (!authState.isAuthenticated || !authState.token) {
+      if (!isAuthenticated || !token) {
         // Handle authentication failure gracefully
         setIsConfirmOpen(false);
         setFormError("Your session has expired. Please log in again.");

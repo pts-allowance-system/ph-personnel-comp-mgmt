@@ -94,9 +94,9 @@ export async function POST(request: NextRequest) {
       status 
     } = requestData;
 
-    // Basic validation
-    if (!monthlyRate || !totalAmount) {
-      return NextResponse.json({ error: "Monthly rate and total amount are required" }, { status: 400 });
+    // For non-draft submissions, basic validation is required.
+    if (status !== 'draft' && (!monthlyRate || !totalAmount)) {
+      return NextResponse.json({ error: "Monthly rate and total amount are required for submission" }, { status: 400 });
     }
 
     const newRequest: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "employeeName" | "approverName" | "approvedAt" | "approvedBy" | "dateOfRequest"> = {

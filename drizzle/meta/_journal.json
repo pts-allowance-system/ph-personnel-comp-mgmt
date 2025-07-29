@@ -8,6 +8,13 @@
       "when": 1753787756940,
       "tag": "0000_little_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1753807016209,
+      "tag": "0001_clumsy_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }
