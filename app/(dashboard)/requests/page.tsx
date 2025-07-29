@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Plus, Eye, Edit } from "lucide-react"
+import { Plus, Eye, Edit, FileEdit, Clock, CheckCircle } from "lucide-react"
 import Link from "next/link"
 
 import { formatToThb } from "@/lib/utils/currency-utils"
@@ -32,6 +32,10 @@ export default function RequestsPage() {
       clearData()
     }
   }, [token, user, fetchRequests, clearData])
+
+  const draftRequests = requests.filter(r => r.status === 'draft').length;
+  const pendingRequests = requests.filter(r => ['pending', 'submitted', 'processing'].includes(r.status)).length;
+  const approvedRequests = requests.filter(r => r.status === 'approved').length;
 
   if (loading) {
     return <div className="flex justify-center p-8">กำลังโหลดคำขอรับเงิน พ.ต.ส....</div>
@@ -58,9 +62,43 @@ export default function RequestsPage() {
         </Alert>
       )}
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ฉบับร่าง</CardTitle>
+            <FileEdit className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{draftRequests}</div>
+            <p className="text-xs text-muted-foreground">คำขอที่ยังไม่ได้ส่ง</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">กำลังดำเนินการ</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingRequests}</div>
+            <p className="text-xs text-muted-foreground">คำขอที่รอการอนุมัติ</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">อนุมัติแล้ว</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{approvedRequests}</div>
+            <p className="text-xs text-muted-foreground">คำขอที่ได้รับการอนุมัติแล้ว</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>ประวัติคำขอรับเงิน พ.ต.ส.</CardTitle>
+          <CardTitle>คำขอทั้งหมดของคุณ</CardTitle>
           <CardDescription>ดูและจัดการคำขอรับเงิน พ.ต.ส. ทั้งหมดของคุณ</CardDescription>
         </CardHeader>
         <CardContent>
