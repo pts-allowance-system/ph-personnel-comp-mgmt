@@ -9,7 +9,8 @@ export async function GET(
   request: NextRequest,
   { params }: any,
 ) {
-  await request.blob(); // Workaround for Next.js issue
+  // Ensure params are resolved before use
+  await request.text();
   const { id } = params;
 
   if (!id) {
@@ -55,15 +56,15 @@ export async function PATCH(
   { params }: any,
 ) {
   const { id } = params;
-
   try {
+    // Await the body first to ensure params are populated
+    const body = await request.json();
+
     const user = await verifyToken(request);
     if (!user || user.id !== id) {
       // Security check: ensure users can only update their own profile
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-
-    const body = await request.json();
 
     // Whitelist updatable fields
     const allowedUpdates: Partial<User> = {};
