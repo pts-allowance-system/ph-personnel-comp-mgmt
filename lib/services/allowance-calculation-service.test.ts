@@ -1,6 +1,6 @@
 import { AllowanceCalculationService } from './allowance-calculation-service';
 import { RulesDAL } from '../dal/rules';
-import { User, Rule } from '../models';
+import { User, Rule, RuleOperator } from '../models';
 
 // Mock the RulesDAL
 jest.mock('../dal/rules');
@@ -17,7 +17,7 @@ describe('AllowanceCalculationService', () => {
     mockedRulesDAL.findAllActive.mockResolvedValue([]);
     const user: Partial<User> = { position: 'Doctor' };
     const result = await AllowanceCalculationService.calculate(user);
-    expect(result).toEqual({ allowanceGroup: null, tier: null });
+    expect(result).toBeNull();
   });
 
   it('should return null when no rules match the user profile', async () => {
@@ -27,14 +27,14 @@ describe('AllowanceCalculationService', () => {
         name: 'Doctor Rule',
         priority: 100,
         isActive: true,
-        conditions: { all: [{ fact: 'position', operator: 'Equal', value: 'Doctor' }] },
+        conditions: { all: [{ fact: 'position', operator: RuleOperator.Equal, value: 'Doctor' }] },
         outcome: { allowanceGroup: 'Doctor', tier: '1' },
       },
     ];
     mockedRulesDAL.findAllActive.mockResolvedValue(mockRules);
     const user: Partial<User> = { position: 'Nurse' };
     const result = await AllowanceCalculationService.calculate(user);
-    expect(result).toEqual({ allowanceGroup: null, tier: null });
+    expect(result).toBeNull();
   });
 
   it('should return the correct allowance for a user matching a simple rule', async () => {
@@ -44,7 +44,7 @@ describe('AllowanceCalculationService', () => {
         name: 'Doctor Rule',
         priority: 100,
         isActive: true,
-        conditions: { all: [{ fact: 'position', operator: 'Equal', value: 'Doctor' }] },
+        conditions: { all: [{ fact: 'position', operator: RuleOperator.Equal, value: 'Doctor' }] },
         outcome: { allowanceGroup: 'Doctor', tier: '1' },
       },
     ];
@@ -63,8 +63,8 @@ describe('AllowanceCalculationService', () => {
         isActive: true,
         conditions: {
           all: [
-            { fact: 'position', operator: 'Equal', value: 'Nurse' },
-            { fact: 'certifications', operator: 'In', value: ['ICU Certified'] },
+            { fact: 'position', operator: RuleOperator.Equal, value: 'Nurse' },
+            { fact: 'certifications', operator: RuleOperator.In, value: ['ICU Certified'] },
           ],
         },
         outcome: { allowanceGroup: 'Nurse', tier: '3' },
@@ -85,8 +85,8 @@ describe('AllowanceCalculationService', () => {
             isActive: true,
             conditions: {
                 any: [
-                    { fact: 'specialTasks', operator: 'In', value: ['Chemotherapy Prep'] },
-                    { fact: 'department', operator: 'Equal', value: 'Oncology' },
+                    { fact: 'specialTasks', operator: RuleOperator.In, value: ['Chemotherapy Prep'] },
+                    { fact: 'department', operator: RuleOperator.Equal, value: 'Oncology' },
                 ],
             },
             outcome: { allowanceGroup: 'Pharmacist', tier: '2' },
@@ -99,6 +99,8 @@ describe('AllowanceCalculationService', () => {
   });
 
   it('should prioritize the rule with the highest priority', async () => {
+    // Note: The service itself doesn't sort, it relies on the DAL providing sorted rules.
+    // This test confirms it picks the first match from the pre-sorted list.
     const mockRules: Rule[] = [
       {
         id: '2',
@@ -107,8 +109,8 @@ describe('AllowanceCalculationService', () => {
         isActive: true,
         conditions: {
           all: [
-            { fact: 'position', operator: 'Equal', value: 'Nurse' },
-            { fact: 'certifications', operator: 'In', value: ['ICU Certified'] },
+            { fact: 'position', operator: RuleOperator.Equal, value: 'Nurse' },
+            { fact: 'certifications', operator: RuleOperator.In, value: ['ICU Certified'] },
           ],
         },
         outcome: { allowanceGroup: 'Nurse', tier: '3' },
@@ -118,7 +120,7 @@ describe('AllowanceCalculationService', () => {
         name: 'General Nurse Rule',
         priority: 50,
         isActive: true,
-        conditions: { all: [{ fact: 'position', operator: 'Equal', value: 'Nurse' }] },
+        conditions: { all: [{ fact: 'position', operator: RuleOperator.Equal, value: 'Nurse' }] },
         outcome: { allowanceGroup: 'Nurse', tier: '1' },
       },
     ];

@@ -1,16 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/utils/auth-utils";
-import { UserProfileService } from "@/lib/services/user-profile-service";
+import { AllowanceCalculationService } from "@/lib/services/allowance-calculation-service";
 import { UsersDAL } from "@/lib/dal/users";
 import cache from "@/lib/utils/cache";
+import { User } from "@/lib/models";
 
 export async function GET(
   request: NextRequest,
   { params }: any,
 ) {
-  // Even if the body is not used, awaiting it resolves a Next.js issue
-  // where params are accessed before the request is fully processed.
-  await request.blob();
+  await request.blob(); // Workaround for Next.js issue
   const { id } = params;
 
   if (!id) {
@@ -26,11 +25,19 @@ export async function GET(
     }
     console.log(`[Cache] MISS for user ${id}`);
 
-    const profileData = await UserProfileService.getProfile(id);
-
-    if (!profileData) {
+    const user = await UsersDAL.findById(id);
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    const allowanceOutcome = await AllowanceCalculationService.calculate(user);
+
+    // Combine user data with allowance outcome to create the profile response
+    const profileData = {
+      ...user,
+      allowanceGroup: allowanceOutcome?.allowanceGroup ?? null,
+      tier: allowanceOutcome?.tier ?? null,
+    };
 
     cache.set(cacheKey, profileData);
     return NextResponse.json(profileData);
@@ -52,23 +59,19 @@ export async function PATCH(
   try {
     const user = await verifyToken(request);
     if (!user || user.id !== id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      // Security check: ensure users can only update their own profile
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const body = await request.json();
 
-    // Basic validation
-    if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
-      return NextResponse.json({ error: "Invalid update data" }, { status: 400 });
-    }
-
-    // Whitelist updatable fields to prevent users from changing their role, etc.
-    const allowedUpdates: { [key: string]: any } = {};
-    const updatableFields = ['firstName', 'lastName', 'email', 'department', 'position', 'licenseNumber'];
+    // Whitelist updatable fields
+    const allowedUpdates: Partial<User> = {};
+    const updatableFields: (keyof User)[] = ['firstName', 'lastName', 'email', 'department', 'position', 'licenseNumber'];
 
     for (const field of updatableFields) {
       if (body[field] !== undefined) {
-        allowedUpdates[field] = body[field];
+        (allowedUpdates as any)[field] = body[field];
       }
     }
 
@@ -80,8 +83,7 @@ export async function PATCH(
 
     if (success) {
       // Invalidate cache
-      const cacheKey = `profile:${id}`;
-      cache.del(cacheKey);
+      cache.del(`profile:${id}`);
       return NextResponse.json({ success: true, message: "Profile updated successfully" });
     } else {
       return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });

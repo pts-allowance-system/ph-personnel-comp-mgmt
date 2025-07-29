@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     } else if (userId) {
       requests = await RequestsDAL.findByUserId(userId, fetchAll)
     } else if (user.role === "employee") {
-      requests = await RequestsDAL.findByUserId(user.userId, fetchAll)
+      requests = await RequestsDAL.findByUserId(user.id, fetchAll)
     } else {
       const statusMap = {
         supervisor: "submitted",
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     const newRequest: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "employeeName" | "approverName" | "approvedAt" | "approvedBy" | "dateOfRequest"> = {
-      employeeId: user.userId,
+      employeeId: user.id,
       status: status || "draft",
       documents: documents || [],
       notes: notes || null,

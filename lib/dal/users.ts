@@ -1,113 +1,106 @@
-import { Database } from '@/lib/database'
-import bcrypt from 'bcryptjs'
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq, and, not } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
 import type { User } from "../models";
 
+// Define a type for the user data returned from the DB, excluding the password
+type UserRecord = Omit<typeof users.$inferSelect, 'passwordHash'>;
+
 export class UsersDAL {
+  private static mapToUser(record: UserRecord): User {
+    // This is a simple mapping for now. We can add more complex logic here if needed.
+    return {
+      id: record.id,
+      nationalId: record.nationalId,
+      firstName: record.firstName,
+      lastName: record.lastName,
+      email: record.email,
+      role: record.role,
+      department: record.department ?? undefined,
+      position: record.position ?? undefined,
+      hasSpecialOrder: record.hasSpecialOrder ?? undefined,
+      certifications: record.certifications ? (record.certifications as string[]) : undefined,
+      specialTasks: record.specialTasks ? (record.specialTasks as string[]) : undefined,
+      isActive: record.isActive ?? false,
+    };
+  }
+
   static async findByNationalId(nationalId: string): Promise<User | null> {
-    const sql = `
-      SELECT id, national_id, firstName, lastName, email, role, department, position, isActive, created_at, updated_at
-      FROM users
-      WHERE national_id = ? AND isActive = true
-    `
-    return await Database.queryOne<User>(sql, [nationalId])
+    const result = await db.select().from(users).where(and(eq(users.nationalId, nationalId), eq(users.isActive, true))).limit(1);
+    if (result.length === 0) return null;
+    const { passwordHash, ...userRecord } = result[0];
+    return this.mapToUser(userRecord);
   }
 
   static async findById(id: string): Promise<User | null> {
-    const sql = `
-      SELECT 
-        id, national_id, firstName, lastName, email, role, department, position, isActive, 
-        certifications, hasSpecialOrder, specialTasks, 
-        created_at, updated_at
-      FROM users 
-      WHERE id = ? AND isActive = true
-    `
-    return await Database.queryOne<User>(sql, [id]);
+    const result = await db.select().from(users).where(and(eq(users.id, id), eq(users.isActive, true))).limit(1);
+    if (result.length === 0) return null;
+    const { passwordHash, ...userRecord } = result[0];
+    return this.mapToUser(userRecord);
   }
 
   static async findAll(filters: { role?: string; isActive?: boolean } = {}): Promise<User[]> {
-    let sql = `
-      SELECT id, national_id, firstName, lastName, email, role, department, position, isActive, created_at, updated_at
-      FROM users 
-      WHERE 1=1
-    `
-    const params: any[] = []
-
+    const conditions = [];
     if (filters.role) {
-      sql += " AND role = ?"
-      params.push(filters.role)
+      conditions.push(eq(users.role, filters.role as User['role']));
     }
-
     if (filters.isActive !== undefined) {
-      sql += " AND isActive = ?"
-      params.push(filters.isActive)
+      conditions.push(eq(users.isActive, filters.isActive));
     }
 
-    sql += " ORDER BY lastName, firstName"
-
-    return await Database.query<User>(sql, params);
+    const results = await db.select().from(users).where(and(...conditions));
+    return results.map(r => {
+        const { passwordHash, ...userRecord } = r;
+        return this.mapToUser(userRecord)
+    });
   }
 
   static async authenticate(nationalId: string, password: string): Promise<User | null> {
-    const sql = `
-      SELECT id, national_id, firstName, lastName, email, role, department, position, isActive, password_hash
-      FROM users 
-      WHERE national_id = ? AND isActive = true
-    `
-    const user = await Database.queryOne<User & { password_hash: string | null }>(sql, [nationalId]);
+    const result = await db.select().from(users).where(and(eq(users.nationalId, nationalId), eq(users.isActive, true))).limit(1);
+    if (result.length === 0) return null;
 
-    if (!user || typeof user.password_hash !== 'string' || user.password_hash.length === 0) {
-      return null;
-    }
-    
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const userWithPassword = result[0];
+    const isValid = await bcrypt.compare(password, userWithPassword.passwordHash);
 
     if (!isValid) {
       return null;
     }
 
-    // Remove password_hash from returned user
-    const { password_hash, ...userWithoutPassword } = user;
-    return userWithoutPassword as User;
+    const { passwordHash, ...userRecord } = userWithPassword;
+    return this.mapToUser(userRecord);
   }
 
-  static async create(userData: Omit<User, "id" | "createdAt" | "updatedAt"> & { password: string }): Promise<string> {
-    const id = Database.generateId()
-    const passwordHash = await bcrypt.hash(userData.password, 10)
+  static async create(userData: Omit<User, "id" | "isActive"> & { password: string }): Promise<string> {
+    const id = crypto.randomUUID();
+    const passwordHash = await bcrypt.hash(userData.password, 10);
 
-    const data = {
+    await db.insert(users).values({
       id,
-      national_id: userData.nationalId,
+      nationalId: userData.nationalId,
       firstName: userData.firstName,
       lastName: userData.lastName,
       email: userData.email,
-      password_hash: passwordHash,
+      passwordHash,
       role: userData.role,
-      department: userData.department ?? null,
-      position: userData.position ?? null,
-      isActive: userData.isActive ?? true,
-    }
+      department: userData.department,
+      position: userData.position,
+      hasSpecialOrder: userData.hasSpecialOrder,
+      certifications: userData.certifications,
+      specialTasks: userData.specialTasks,
+    });
 
-    await Database.insert("users", data)
-    return id
+    return id;
   }
 
   static async update(id: string, updates: Partial<User>): Promise<boolean> {
-    const data: Record<string, any> = {}
-
-    if (updates.firstName) data.firstName = updates.firstName;
-    if (updates.lastName) data.lastName = updates.lastName;
-    if (updates.email) data.email = updates.email;
-    if (updates.role) data.role = updates.role;
-    if (updates.department) data.department = updates.department;
-    if (updates.position) data.position = updates.position;
-    if (updates.isActive !== undefined) data.isActive = updates.isActive;
-
-    if (Object.keys(data).length === 0) return true; // No updates
-
-    return await Database.update("users", data, { id });
+    const result = await db.update(users).set(updates).where(eq(users.id, id));
+    return result.rowsAffected > 0;
   }
 
   static async delete(id: string): Promise<boolean> {
-    return await Database.update("users", { isActive: false }, { id })
+    // This is a soft delete
+    const result = await db.update(users).set({ isActive: false }).where(eq(users.id, id));
+    return result.rowsAffected > 0;
   }
 }

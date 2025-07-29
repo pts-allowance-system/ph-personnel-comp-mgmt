@@ -23,18 +23,23 @@ export enum RuleOperator {
   NotIn = 'notIn',
 }
 
+// A value can be a string, number, boolean, or an array of those.
+type RuleValue = string | number | boolean | string[] | number[];
+
 export interface RuleCondition {
   fact: keyof User;
   operator: RuleOperator;
-  value: any;
+  value: RuleValue;
 }
 
-export interface RuleEvent {
-  type: string;
-  params: {
-    group: string;
-    tier: string;
-  };
+export interface RuleConditions {
+  all?: RuleCondition[];
+  any?: RuleCondition[];
+}
+
+export interface RuleOutcome {
+  allowanceGroup: string;
+  tier: string;
 }
 
 export interface Rule {
@@ -43,8 +48,8 @@ export interface Rule {
   description?: string;
   priority: number;
   isActive: boolean;
-  conditions: any;
-  outcome: any;
+  conditions: RuleConditions;
+  outcome: RuleOutcome;
 }
 
 export interface FileUpload {
@@ -63,19 +68,15 @@ export interface AllowanceRequest {
   lastName?: string;
   employeeId: string;
   employeeName: string;
-  status: string; // Changed from RequestStatus enum
+  status: string;
   documents: FileUpload[];
   notes?: string;
   comments?: Comment[];
   createdAt?: string;
   updatedAt?: string;
-
-  // Approval tracking
   approvedAt?: string;
   approvedBy?: string;
   approverName?: string;
-
-  // New form fields
   employeeType: string;
   requestType: string;
   position: string;
@@ -94,7 +95,7 @@ export interface AllowanceRequest {
   startDate?: string;
   endDate?: string;
   totalDays?: number;
-  allowanceGroup?: string; // Corrected from 'group'
+  allowanceGroup?: string;
   tier?: string;
 }
 
@@ -103,7 +104,7 @@ export type UserRole = "employee" | "supervisor" | "hr" | "finance" | "admin";
 export interface Comment {
   id: string;
   requestId: string;
-  user: { id: string; name: string }; // Changed from 'author' to 'user' for consistency
+  user: { id: string; name: string };
   timestamp: string;
   content: string;
   message?: string;
@@ -116,18 +117,4 @@ export interface Rate {
   monthlyRate: number
   effectiveDate: string
   isActive: boolean
-}
-
-export interface UserProfile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  position: string | null;
-  department: string | null;
-  allowanceGroup: string | null;
-  tier: string | null;
-  nationalId: string | null;
-  positionId: string | null;
-  licenseNumber: string | null;
-  specialTasks?: string[];
 }

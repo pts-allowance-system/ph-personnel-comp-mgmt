@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1753787756940,
+      "tag": "0000_little_psynapse",
+      "breakpoints": true
+    }
+  ]
+}
