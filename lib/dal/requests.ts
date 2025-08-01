@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
 import { allowanceRequests, users, requestDocuments, requestComments } from "@/lib/db/schema";
-import { eq, and, desc, notInArray, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import type { AllowanceRequest, FileUpload, Comment } from "../models";
+import type { AllowanceRequest, FileUpload, Comment, User } from "../models";
 
-const mapRowToRequest = async (row: any): Promise<AllowanceRequest> => {
+// This function is now only used for single-record fetches to avoid N+1 in lists.
+const mapRowToRequestWithRelations = async (row: any): Promise<AllowanceRequest> => {
   const documents = await RequestsDAL.getRequestDocuments(row.id);
   const comments = await RequestsDAL.getRequestComments(row.id);
 
@@ -80,10 +81,70 @@ export class RequestsDAL {
       .leftJoin(approver, eq(allowanceRequests.approvedBy, approver.id));
   }
 
+  // New helper method to efficiently map relations for lists
+  private static async _mapRequestsWithRelations(rows: any[]): Promise<AllowanceRequest[]> {
+    if (rows.length === 0) return [];
+
+    const requestIds = rows.map(r => r.id);
+
+    // Fetch all documents and comments for the given request IDs in single queries
+    const allDocuments = await db.select().from(requestDocuments).where(inArray(requestDocuments.requestId, requestIds));
+    const allCommentsData = await db
+      .select({
+        id: requestComments.id,
+        requestId: requestComments.requestId,
+        userId: requestComments.userId,
+        message: requestComments.message,
+        createdAt: requestComments.createdAt,
+        authorName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(requestComments)
+      .leftJoin(users, eq(requestComments.userId, users.id))
+      .where(inArray(requestComments.requestId, requestIds))
+      .orderBy(desc(requestComments.createdAt));
+
+    // Group documents and comments by request ID for efficient mapping
+    const documentsMap = allDocuments.reduce((acc, doc) => {
+      if (!acc[doc.requestId]) acc[doc.requestId] = [];
+      acc[doc.requestId].push({
+          id: doc.id,
+          name: doc.fileName,
+          url: doc.fileUrl,
+          path: doc.filePath,
+          size: doc.fileSize,
+          type: doc.fileType,
+      });
+      return acc;
+    }, {} as Record<string, FileUpload[]>);
+
+    const commentsMap = allCommentsData.reduce((acc, comment) => {
+      if (!acc[comment.requestId]) acc[comment.requestId] = [];
+      acc[comment.requestId].push({
+          id: comment.id,
+          requestId: comment.requestId,
+          user: { id: comment.userId, name: comment.authorName || 'Unknown' },
+          content: comment.message,
+          timestamp: comment.createdAt?.toISOString() || '',
+      });
+      return acc;
+    }, {} as Record<string, Comment[]>);
+
+    // Map the final request objects
+    return rows.map(row => ({
+      ...row,
+      documents: documentsMap[row.id] || [],
+      comments: commentsMap[row.id] || [],
+      standardDuties: row.standardDuties ? JSON.parse(row.standardDuties) : {},
+      monthlyRate: Number(row.monthlyRate),
+      totalAmount: Number(row.totalAmount),
+    }));
+  }
+
   static async findById(id: string): Promise<AllowanceRequest | null> {
     const rows = await this.getFullSelectQuery().where(eq(allowanceRequests.id, id));
     if (rows.length === 0) return null;
-    return mapRowToRequest(rows[0]);
+    // For a single record, the original method is fine.
+    return mapRowToRequestWithRelations(rows[0]);
   }
 
   static async findByUserId(userId: string, fetchAll?: boolean): Promise<AllowanceRequest[]> {
@@ -93,14 +154,14 @@ export class RequestsDAL {
     }
     const query = this.getFullSelectQuery().where(and(...conditions));
     const rows = await query.orderBy(desc(allowanceRequests.createdAt));
-    return Promise.all(rows.map(mapRowToRequest));
+    return this._mapRequestsWithRelations(rows);
   }
 
   static async findByStatus(status: string): Promise<AllowanceRequest[]> {
     const rows = await this.getFullSelectQuery()
       .where(eq(allowanceRequests.status, status))
       .orderBy(desc(allowanceRequests.createdAt));
-    return Promise.all(rows.map(mapRowToRequest));
+    return this._mapRequestsWithRelations(rows);
   }
 
   static async create(
@@ -220,7 +281,7 @@ export class RequestsDAL {
     return rows.map((row) => ({
       id: row.id,
       requestId: row.requestId,
-      user: { id: row.userId, name: row.authorName },
+      user: { id: row.userId, name: row.authorName || 'Unknown' },
       content: row.message,
       timestamp: row.createdAt?.toISOString() || '',
     }));
@@ -230,11 +291,11 @@ export class RequestsDAL {
     const rows = await this.getFullSelectQuery()
       .where(eq(users.department, department))
       .orderBy(desc(allowanceRequests.createdAt));
-    return Promise.all(rows.map(mapRowToRequest));
+    return this._mapRequestsWithRelations(rows);
   }
 
   static async findAllWithDetails(): Promise<AllowanceRequest[]> {
     const rows = await this.getFullSelectQuery().orderBy(desc(allowanceRequests.createdAt));
-    return Promise.all(rows.map(mapRowToRequest));
+    return this._mapRequestsWithRelations(rows);
   }
 }

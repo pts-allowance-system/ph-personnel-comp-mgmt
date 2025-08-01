@@ -1,9 +1,5 @@
 import type { NextRequest } from "next/server"
-import jwt from "jsonwebtoken"
-import { UsersDAL } from "@/lib/dal/users"
 import { UserRole } from "../models"
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 
 interface TokenPayload {
   id: string

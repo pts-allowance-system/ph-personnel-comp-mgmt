@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import cloneDeep from 'clone-deep';
 import { verifyToken } from "@/lib/utils/auth-utils"
 import { RequestsDAL } from "@/lib/dal/requests"
 import { RatesDAL } from "@/lib/dal/rates"
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest) {
     if (cachedRequests) {
       console.log(`API: Cache hit for key: ${cacheKey}`);
       // Return a deep clone to prevent object mutation issues
-      return NextResponse.json(cloneDeep(cachedRequests));
+      return NextResponse.json(JSON.parse(JSON.stringify(cachedRequests)));
     }
 
     console.log(`API: Cache miss for key: ${cacheKey}. Fetching from DB.`);

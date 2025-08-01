@@ -168,35 +168,3 @@ export class StorageService {
     return supabase !== null
   }
 }
-
-// A wrapper for the native fetch function to handle auth tokens and errors.
-export const api = async (url: string, options: RequestInit = {}) => {
-  // Get the fresh state on every API call
-  const { token, logout } = useAuthStore.getState();
-
-  const headers = new Headers(options.headers);
-
-  // Add the Authorization header if a token exists.
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  // Set Content-Type for POST/PATCH/PUT if not already set
-  if (options.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // Always include credentials to ensure cookies are sent
-  });
-
-  // If the response is a 401 Unauthorized, log the user out.
-  if (response.status === 401) {
-    logout();
-    throw new Error('Session expired. Please log in again.');
-  }
-
-  return response;
-};
