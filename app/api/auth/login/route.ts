@@ -43,8 +43,12 @@ export async function POST(request: NextRequest) {
     // Generate JWT token using jose
     const token = await new SignJWT({
       id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
       role: user.role,
-      // Keep payload minimal
+      nationalId: user.nationalId,
+      department: user.department,
+      position: user.position,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()

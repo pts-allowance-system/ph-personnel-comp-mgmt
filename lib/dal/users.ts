@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
-import { eq, and, not } from 'drizzle-orm';
+import { eq, and, or, like, concat, not } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import type { User } from "../models";
 
@@ -40,7 +40,7 @@ export class UsersDAL {
     return this.mapToUser(userRecord);
   }
 
-  static async findAll(filters: { role?: string; isActive?: boolean } = {}): Promise<User[]> {
+  static async findAll(filters: { role?: string; isActive?: boolean, searchTerm?: string } = {}): Promise<User[]> {
     const conditions = [];
     if (filters.role) {
       conditions.push(eq(users.role, filters.role as User['role']));
@@ -48,8 +48,20 @@ export class UsersDAL {
     if (filters.isActive !== undefined) {
       conditions.push(eq(users.isActive, filters.isActive));
     }
+    if (filters.searchTerm) {
+      const searchPattern = `%${filters.searchTerm}%`;
+      conditions.push(
+        or(
+          like(concat(users.firstName, ' ', users.lastName), searchPattern),
+          like(users.email, searchPattern),
+          like(users.nationalId, searchPattern)
+        )!
+      );
+    }
 
-    const results = await db.select().from(users).where(and(...conditions));
+    const finalCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const results = await db.select().from(users).where(finalCondition);
     return results.map(r => {
         const { passwordHash, ...userRecord } = r;
         return this.mapToUser(userRecord)

@@ -29,3 +29,14 @@ export const updateRequestSchema = z.object({
     content: z.string(),
   })).optional(),
 });
+
+// Schema for updating a user
+export const updateUserSchema = z.object({
+  firstName: z.string().min(1, "First name is required").optional(),
+  lastName: z.string().min(1, "Last name is required").optional(),
+  email: z.string().email("Invalid email address").optional(),
+  role: z.enum(["employee", "supervisor", "hr", "finance", "admin"]).optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
+  isActive: z.boolean().optional(),
+});

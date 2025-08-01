@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useDataStore } from "@/lib/store/data-store"
+import { useDebounce } from "@/hooks/use-debounce"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,30 +15,25 @@ import { Plus, Search, Edit, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminUsersPage() {
-  const { token } = useAuthStore() // token might still be needed for auth checks
+  const { token } = useAuthStore()
   const { users, fetchUsers, loading, error, clearData } = useDataStore()
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
 
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
   useEffect(() => {
     if (token) {
-      fetchUsers()
+      fetchUsers({ role: roleFilter, searchTerm: debouncedSearchTerm })
     }
 
     return () => {
+      // Optional: decide if you want to clear data on unmount.
+      // If users navigate away and back, they might want to see the previous state.
+      // For this example, we keep the cleanup.
       clearData()
     }
-  }, [token, fetchUsers, clearData])
-
-  const filteredUsers = users.filter((user) => {
-    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.nationalId.includes(searchTerm)
-    const matchesRole = roleFilter === "all" || user.role === roleFilter
-    return matchesSearch && matchesRole
-  })
+  }, [token, roleFilter, debouncedSearchTerm, fetchUsers, clearData])
 
   if (loading) {
     return <div className="flex justify-center p-8">Loading users...</div>
@@ -108,7 +104,7 @@ export default function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
+              {users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{`${user.firstName} ${user.lastName}`}</TableCell>
                   <TableCell>{user.nationalId}</TableCell>
@@ -141,7 +137,7 @@ export default function AdminUsersPage() {
             </TableBody>
           </Table>
 
-          {filteredUsers.length === 0 && (
+          {!loading && users.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-500">No users found matching your criteria</p>
             </div>

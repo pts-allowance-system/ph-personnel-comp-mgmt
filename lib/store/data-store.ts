@@ -54,7 +54,7 @@ interface DataState {
   fetchRequestById: (id: string) => Promise<AllowanceRequest | null>;
   fetchRates: () => Promise<void>;
   fetchRules: () => Promise<void>;
-  fetchUsers: () => Promise<void>;
+  fetchUsers: (filters?: { role?: string; searchTerm?: string }) => Promise<void>;
   fetchHrDashboardData: () => Promise<void>;
   fetchFinanceDashboardData: () => Promise<void>;
   addRequest: (request: Partial<AllowanceRequest>) => Promise<AllowanceRequest | null>;
@@ -291,10 +291,19 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ currentRequest: null });
   },
 
-  fetchUsers: async () => {
+  fetchUsers: async (filters = {}) => {
     try {
       set({ loading: true, error: null });
-      const response = await api("/api/admin/users");
+      const params = new URLSearchParams();
+      if (filters.role && filters.role !== 'all') {
+        params.append('role', filters.role);
+      }
+      if (filters.searchTerm) {
+        params.append('searchTerm', filters.searchTerm);
+      }
+
+      const url = `/api/admin/users?${params.toString()}`;
+      const response = await api(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.statusText}`);

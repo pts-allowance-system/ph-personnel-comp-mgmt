@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import type { UserRole } from "@/lib/models";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-super-secret-key-that-is-at-least-32-bytes-long");
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is not set");
+}
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
 // Define access control rules
 const accessControl: Record<string, UserRole[]> = {

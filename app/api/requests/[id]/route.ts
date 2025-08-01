@@ -1,108 +1,105 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
-import { verifyToken } from "@/lib/utils/auth-utils"
-import cache from "@/lib/utils/cache"
-import { withValidation } from "@/lib/utils/validation"
+import { withValidation, NextRequestWithExtras } from "@/lib/utils/validation"
+import { withAuthorization, AuthenticatedRequest } from "@/lib/utils/authorization"
 import { updateRequestSchema } from "@/lib/schemas"
+import { handleApiError, ApiError } from "@/lib/utils/error-handler"
+import { canTransition, canViewRequest, RequestStatus } from "@/lib/authz" // Updated import
+import cache from "@/lib/utils/cache"
 
-export const dynamic = "force-dynamic";
-
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await context.params;
-    if (!id) {
-      return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
-    }
-
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const cacheKey = `request:${id}`;
-    const cachedRequest = cache.get(cacheKey);
-    if (cachedRequest) {
-      return NextResponse.json({ request: cachedRequest });
-    }
-
-    const requestData = await RequestsDAL.findById(id)
-
-    if (!requestData) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 })
-    }
-
-    // In the JWT, the user's ID is stored in the `id` field.
-    if (user.role === "employee" && requestData.employeeId !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    cache.set(cacheKey, requestData);
-
-    return NextResponse.json({ request: requestData })
-  } catch (error) {
-    console.error("Get request error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+type RouteContext = {
+  params: {
+    id: string
   }
 }
 
-async function patchHandler(
-  request: any,
-  context: { params: Promise<{ id: string }> }
-) {
+// Refactored GET handler using the centralized authorization module
+async function getHandler(request: AuthenticatedRequest, { params }: RouteContext) {
   try {
-    const { id } = await context.params;
-    if (!id) {
-      return NextResponse.json({ error: "Invalid request ID" }, { status: 400 })
+    const user = request.user;
+    const requestData = await RequestsDAL.findById(params.id);
+
+    if (!requestData) {
+      throw new ApiError(404, "Request not found");
     }
 
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Centralized authorization check
+    if (!canViewRequest(user, requestData)) {
+      throw new ApiError(403, "Forbidden");
     }
 
+    return NextResponse.json({ request: requestData });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+// Refactored PATCH handler with workflow authorization
+async function patchHandler(request: NextRequestWithExtras & AuthenticatedRequest, { params }: RouteContext) {
+  try {
+    const { id } = params;
     const updates = request.parsedBody;
+    const user = request.user;
 
-    // Add logic here to check if the user is allowed to update the request
-    // For example, an employee should only be able to update their own draft requests.
-    // An admin or HR person might have more permissions.
-
-    const success = await RequestsDAL.update(id, updates)
-
-    if (!success) {
-      return NextResponse.json({ error: "Request not found or no changes made" }, { status: 404 })
+    const currentRequest = await RequestsDAL.findById(id);
+    if (!currentRequest) {
+      throw new ApiError(404, "Request not found");
     }
 
-    // Invalidate caches
+    const isStatusUpdate = updates.status && updates.status !== currentRequest.status;
+    if (isStatusUpdate) {
+      const transitionAllowed = canTransition(user.role, currentRequest.status as RequestStatus, updates.status as RequestStatus);
+      if (!transitionAllowed) {
+        throw new ApiError(403, `User with role '${user.role}' cannot change status from '${currentRequest.status}' to '${updates.status}'`);
+      }
+    }
+
+    if (user.role === 'employee') {
+      if (currentRequest.employeeId !== user.id) {
+        throw new ApiError(403, "You can only update your own requests.");
+      }
+      if (currentRequest.status !== 'draft' && isStatusUpdate) {
+        throw new ApiError(403, "You can only submit requests that are in draft status.");
+      }
+    }
+
+    if (user.role === 'supervisor') {
+        if (currentRequest.department !== user.department) {
+            throw new ApiError(403, "You can only approve requests from your own department.");
+        }
+    }
+
+    if (isStatusUpdate) {
+      updates.approvedBy = user.id;
+      updates.approvedAt = new Date();
+    }
+
+    const success = await RequestsDAL.update(id, updates);
+    if (!success) {
+      throw new ApiError(400, "Failed to update request");
+    }
+
     cache.del(`request:${id}`);
     const listCacheKeys = cache.keys().filter(k => k.startsWith('requests:'));
     if (listCacheKeys.length > 0) {
       cache.del(listCacheKeys);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Request updated successfully",
-    })
+    const updatedRequest = await RequestsDAL.findById(id);
+
+    return NextResponse.json({ success: true, message: "Request updated successfully", request: updatedRequest });
+
   } catch (error) {
-    console.error("Update request error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
 
-export const PATCH = withValidation(updateRequestSchema, patchHandler);
+export const GET = withAuthorization(
+  ['admin', 'finance', 'hr', 'supervisor', 'employee'],
+  getHandler
+);
 
-// Handle unsupported HTTP methods
-export async function PUT() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
-}
-
-export async function DELETE() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
-}
-
-export async function POST() {
-  return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
-}
+export const PATCH = withAuthorization(
+  ['admin', 'finance', 'hr', 'supervisor', 'employee'],
+  withValidation(updateRequestSchema, patchHandler)
+);
