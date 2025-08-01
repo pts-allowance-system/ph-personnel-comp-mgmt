@@ -1,126 +1,65 @@
 "use client"
 
-import { useEffect } from "react"
-import { useAuthStore } from "@/lib/store/auth-store"
-import { useDataStore } from "@/lib/store/data-store"
+import { RequestListView } from "@/components/requests/request-list-view"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { StatusBadge } from "@/components/status-badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, Clock, DollarSign } from "lucide-react"
+import { Eye } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { th } from "date-fns/locale"
 import { formatToThb } from "@/lib/utils/currency-utils"
+import type { AllowanceRequest } from "@/lib/models"
+
+const columns = [
+  { key: "employee", header: "Employee" },
+  { key: "group", header: "Group/Tier" },
+  { key: "amount", header: "Amount" },
+  { key: "status", header: "Status" },
+  { key: "date", header: "Submitted" },
+];
+
+const renderCell = (request: AllowanceRequest, key: string) => {
+  switch (key) {
+    case "employee":
+      return request.employeeName;
+    case "group":
+      return `${request.allowanceGroup} / ${request.tier}`;
+    case "amount":
+      return formatToThb(request.totalAmount);
+    case "status":
+      return <StatusBadge status={request.status} />;
+    case "date":
+      return request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A";
+    default:
+      return null;
+  }
+};
+
+const renderActions = (request: AllowanceRequest) => (
+  <Button variant="ghost" size="sm" asChild>
+    <Link href={`/supervisor/requests/${request.id}`}>
+      <Eye className="h-4 w-4 mr-2" />
+      Review
+    </Link>
+  </Button>
+);
+
+const emptyState = (
+  <div className="text-center py-8">
+    <p className="text-gray-500">No pending requests to review.</p>
+  </div>
+);
 
 export default function SupervisorRequestsPage() {
-  const { user } = useAuthStore()
-  const { requests, fetchRequests, loading, error, clearData } = useDataStore()
-
-  useEffect(() => {
-    if (user?.department) {
-      fetchRequests({ status: "submitted", department: user.department })
-    }
-
-    return () => {
-      clearData()
-    }
-  }, [user, fetchRequests, clearData])
-
-  const totalPending = requests.length
-  const totalAmount = requests.reduce((sum, req) => sum + req.totalAmount, 0)
-
-  if (loading) {
-    return <div className="flex justify-center p-8">กำลังโหลดคำขอ...</div>
-  }
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">ตรวจสอบคำขอ</h1>
-        <p className="text-gray-600">ตรวจสอบและอนุมัติคำขอเบี้ยเลี้ยงจากทีมของคุณ</p>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">คำขอที่รอดำเนินการ</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalPending}</div>
-            <p className="text-xs text-muted-foreground">คำขอที่รอการอนุมัติจากคุณ</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">ยอดรวมที่รอดำเนินการ</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatToThb(totalAmount)}</div>
-            <p className="text-xs text-muted-foreground">ผลรวมของคำขอที่รอดำเนินการทั้งหมด</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>รายการคำขอ</CardTitle>
-          <CardDescription>คำขอที่รอการอนุมัติจากหัวหน้างาน</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {requests.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">ไม่มีคำขอที่รอดำเนินการ</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>พนักงาน</TableHead>
-                  <TableHead>กลุ่ม/ระดับ</TableHead>
-                  <TableHead>จำนวนเงิน</TableHead>
-                  <TableHead>สถานะ</TableHead>
-                  <TableHead>วันที่ยื่นเรื่อง</TableHead>
-                  <TableHead>การดำเนินการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {requests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-medium">{request.employeeName}</TableCell>
-                    <TableCell>
-                      {request.allowanceGroup} / {request.tier}
-                    </TableCell>
-                    <TableCell>{formatToThb(request.totalAmount)}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={request.status} />
-                    </TableCell>
-                    <TableCell>{request.createdAt ? format(new Date(request.createdAt), "d MMM yy", { locale: th }) : "N/A"}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/supervisor/requests/${request.id}`}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          ตรวจสอบ
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <RequestListView
+      title="Review Requests"
+      description="Review and approve allowance requests from your team."
+      fetchFilters={(user) => ({ status: "submitted", department: user.department })}
+      tableColumns={columns}
+      renderCell={renderCell}
+      renderActions={renderActions}
+      emptyState={emptyState}
+    />
   )
 }
