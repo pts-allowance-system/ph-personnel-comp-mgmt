@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 import { UserRole } from "../models"
 
-interface TokenPayload {
+export interface TokenPayload {
   id: string
   role: UserRole
   nationalId: string

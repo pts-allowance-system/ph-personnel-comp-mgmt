@@ -1,91 +1,92 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { SignJWT } from "jose";
 import { UsersDAL } from "@/lib/dal/users";
-import { RateLimiter } from "@/lib/utils/rate-limiter";
+import { withRateLimit } from "@/lib/middleware/rate-limiter";
+import { handleApiError, ApiError } from "@/lib/utils/error-handler";
+import * as bcrypt from "bcryptjs";
 
 // Use the same secret as the middleware
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is not set");
 }
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-super-secret-key-that-is-at-least-32-bytes-long");
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
-const loginRateLimiter = new RateLimiter({
-  limit: 10, // 10 requests
-  windowMs: 60 * 1000, // 1 minute
+// Zod schema for login validation
+const loginSchema = z.object({
+  nationalId: z.string()
+    .min(1, "National ID is required")
+    .max(13, "National ID must be 13 characters or less")
+    .regex(/^\d+$/, "National ID must contain only numbers"),
+  password: z.string()
+    .min(1, "Password is required")
+    .max(255, "Password is too long"),
 });
 
-export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
-  const { allowed, remaining } = loginRateLimiter.check(ip);
-
-  if (!allowed) {
-    return NextResponse.json({ error: "Too many login attempts. Please try again later." }, { status: 429 });
-  }
-
+async function loginHandler(request: NextRequest) {
   try {
-    const { nationalId, password } = await request.json();
+    // Parse and validate request data
+    const requestData = await request.json();
+    const result = loginSchema.safeParse(requestData);
 
-    if (!nationalId || !password) {
-      return NextResponse.json(
-        { error: "National ID and password are required" },
-        { status: 400 }
-      );
+    if (!result.success) {
+      // Simplified ApiError call to match the new constructor
+      throw new ApiError(400, "Invalid input data");
     }
 
-    // Authenticate user
+    const { nationalId, password } = result.data;
+
+    // Authenticate user using the dedicated DAL method
     const user = await UsersDAL.authenticate(nationalId, password);
-
     if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      // Return generic error to prevent user enumeration
+      throw new ApiError(401, "Invalid credentials");
     }
 
-    // Generate JWT token using jose
-    const token = await new SignJWT({
+    // Create JWT token
+    const tokenPayload = {
       id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
       role: user.role,
       nationalId: user.nationalId,
+      firstName: user.firstName,
+      lastName: user.lastName,
       department: user.department,
       position: user.position,
-    })
+    };
+
+    const token = await new SignJWT(tokenPayload)
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("24h")
       .sign(JWT_SECRET);
 
-    // Set HTTP-only cookie
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        nationalId: user.nationalId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        department: user.department,
-        position: user.position,
-        isActive: user.isActive,
-      },
-    });
-
-    response.cookies.set("auth-token", token, {
+    // Create secure cookie options
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 24 * 60 * 60, // 24 hours
+      sameSite: "strict" as const,
+      maxAge: 60 * 60 * 24, // 24 hours in seconds
       path: "/",
-    });
+    };
 
-    // Add rate limit headers
-    response.headers.set("X-RateLimit-Limit", "10");
-    response.headers.set("X-RateLimit-Remaining", remaining.toString());
+    // Create response with token cookie
+    const response = NextResponse.json(
+      {
+        success: true,
+        user: tokenPayload,
+      },
+      { status: 200 }
+    );
+
+    // Set the token as an HTTP-only cookie
+    response.cookies.set("token", token, cookieOptions);
 
     return response;
-  } catch (error) {
-    console.error("Login error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error: unknown) {
+    return handleApiError(error);
   }
 }
+
+// Apply rate limiting middleware to login handler with 'auth' configuration
+export const POST = withRateLimit('auth')(loginHandler);

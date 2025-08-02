@@ -1,16 +1,12 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { allowanceRequests, users } from "@/lib/db/schema"
-import { verifyToken } from "@/lib/utils/auth-utils"
-import { eq, inArray, sql } from "drizzle-orm"
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { allowanceRequests, users } from "@/lib/db/schema";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { eq, inArray, sql } from "drizzle-orm";
+import { handleApiError } from "@/lib/utils/error-handler";
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "finance") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     // Get disbursement summary using Drizzle ORM
     const disbursements = await db
       .select({
@@ -33,9 +29,10 @@ export async function GET(request: NextRequest) {
       amount: d.amount ? Number.parseFloat(d.amount) : 0,
     }));
 
-    return NextResponse.json({ disbursements: formattedDisbursements })
+    return NextResponse.json({ disbursements: formattedDisbursements });
   } catch (error) {
-    console.error("Finance dashboard disbursements error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['finance'], getHandler);

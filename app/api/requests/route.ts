@@ -1,151 +1,175 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/utils/auth-utils"
+import { z } from "zod"
+import { verifyToken, TokenPayload } from "@/lib/utils/auth-utils"
 import { RequestsDAL } from "@/lib/dal/requests"
 import { RatesDAL } from "@/lib/dal/rates"
 import cache from "@/lib/utils/cache"
-import { AllowanceRequest } from "@/lib/models"
+import { AllowanceRequest, UserRole, RequestStatus } from "@/lib/models"
+import { handleApiError } from "@/lib/utils/error-handler"
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization"
+import { ApiError } from "@/lib/utils/error-handler"
 
-export async function GET(request: NextRequest) {
+// Zod schema for document metadata
+const documentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  url: z.string().url(),
+  path: z.string(),
+  size: z.number(),
+  type: z.string(),
+  uploadedAt: z.string().optional(),
+});
+
+// Zod schema for request creation
+const createRequestSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(128, "First name too long"),
+  lastName: z.string().min(1, "Last name is required").max(128, "Last name too long"),
+  employeeType: z.string().min(1, "Employee type is required"),
+  requestType: z.string().min(1, "Request type is required"),
+  position: z.string().optional(),
+  department: z.string().optional(),
+  mainDuties: z.string().min(1, "Main duties are required"),
+  standardDuties: z.object({
+    operations: z.boolean().default(false),
+    planning: z.boolean().default(false),
+    coordination: z.boolean().default(false),
+    service: z.boolean().default(false),
+  }).optional(),
+  assignedTask: z.string().optional(),
+  monthlyRate: z.number().positive("Monthly rate must be positive").optional(),
+  totalAmount: z.number().positive("Total amount must be positive").optional(),
+  effectiveDate: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  totalDays: z.number().int().positive("Total days must be a positive integer").optional(),
+  allowanceGroup: z.string().min(1, "Allowance group is required"),
+  tier: z.string().min(1, "Tier is required"),
+  notes: z.string().optional(),
+  documents: z.array(documentSchema).optional(),
+  status: z.enum(["draft", "submitted"]).default("draft"),
+}).refine((data) => {
+  // For non-draft submissions, monthlyRate and totalAmount are required
+  if (data.status !== 'draft') {
+    return data.monthlyRate && data.totalAmount;
+  }
+  return true;
+}, {
+  message: "Monthly rate and total amount are required for submission",
+  path: ["monthlyRate", "totalAmount"]
+});
+
+const getRequestsByRole = async (user: { id: string; role: UserRole; [key: string]: any }, fetchAll: boolean) => {
+  const statusMap: Partial<Record<UserRole, RequestStatus>> = {
+    supervisor: "submitted",
+    hr: "approved",
+    finance: "hr-checked",
+  };
+
+  switch (user.role) {
+    case "employee":
+      return RequestsDAL.findByUserId(user.id, fetchAll);
+    case "supervisor":
+    case "hr":
+    case "finance":
+      if (fetchAll) {
+        return RequestsDAL.findAllWithDetails();
+      }
+      const status = statusMap[user.role];
+      return status ? RequestsDAL.findByStatus(status) : [];
+    case "admin":
+      return RequestsDAL.findAllWithDetails();
+    default:
+      return [];
+  }
+};
+
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const user = request.user;
+    const { searchParams } = new URL(request.url);
+    const fetchAll = searchParams.get("fetchAll") === "true";
 
-    const { searchParams } = new URL(request.url)
-    const fetchAll = searchParams.get("fetchAll") === "true"
-    const userId = searchParams.get("userId")
-    const department = searchParams.get("department")
-
-    // Construct a dynamic cache key
-    const cacheKey = `requests:role=${user.role}:userId=${userId || 'none'}:dept=${department || 'none'}:fetchAll=${fetchAll}`;
+    // Construct a dynamic cache key based on role and fetchAll flag
+    const cacheKey = `requests:role=${user.role}:fetchAll=${fetchAll}`;
 
     const cachedRequests = cache.get<{ requests: any[] }>(cacheKey);
     if (cachedRequests) {
-      console.log(`API: Cache hit for key: ${cacheKey}`);
-      // Return a deep clone to prevent object mutation issues
-      return NextResponse.json(JSON.parse(JSON.stringify(cachedRequests)));
+      return NextResponse.json(cachedRequests);
     }
 
-    console.log(`API: Cache miss for key: ${cacheKey}. Fetching from DB.`);
+    const requests = await getRequestsByRole(user, fetchAll);
 
-    let requests
-    if (department) {
-      requests = await RequestsDAL.findByDepartment(department)
-    } else if (userId) {
-      requests = await RequestsDAL.findByUserId(userId, fetchAll)
-    } else if (user.role === "employee") {
-      requests = await RequestsDAL.findByUserId(user.id, fetchAll)
-    } else {
-      const statusMap = {
-        supervisor: "submitted",
-        hr: "approved",
-        finance: "hr-checked",
-      }
-      if (fetchAll) {
-        requests = await RequestsDAL.findAllWithDetails();
-      } else {
-        const roleStatus = statusMap[user.role as keyof typeof statusMap];
-        requests = roleStatus ? await RequestsDAL.findByStatus(roleStatus) : [];
-      }
-    }
+    const result = { requests };
+    cache.set(cacheKey, result, 300); // Cache for 5 minutes
 
-    const response = { requests };
-    cache.set(cacheKey, response);
-
-    return NextResponse.json(response)
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Get requests error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const user = request.user;
+
+    // Parse and validate request data
+    const requestData = await request.json();
+    const validation = createRequestSchema.safeParse(requestData);
+
+    if (!validation.success) {
+      throw new ApiError(400, "Validation failed", validation.error.issues);
     }
 
-    const requestData = await request.json()
+    const validatedData = validation.data;
 
-    // All fields from the new form are expected to be in requestData
-    const { 
-      firstName,
-      lastName,
-      employeeType, 
-      requestType, 
-      position, 
-      department, 
-      mainDuties, 
-      standardDuties, 
-      assignedTask, 
-      monthlyRate, 
-      totalAmount, 
-      effectiveDate, 
-      startDate, 
-      endDate, 
-      totalDays, 
-      allowanceGroup, 
-      tier, 
-      notes, 
-      documents, 
-      status 
-    } = requestData;
-
-    // For non-draft submissions, basic validation is required.
-    if (status !== 'draft' && (!monthlyRate || !totalAmount)) {
-      return NextResponse.json({ error: "Monthly rate and total amount are required for submission" }, { status: 400 });
-    }
-
+    // Map validated data to the data model, ensuring all fields are included
     const newRequest: Omit<AllowanceRequest, "id" | "createdAt" | "updatedAt" | "comments" | "employeeName" | "approverName" | "approvedAt" | "approvedBy" | "dateOfRequest"> = {
       employeeId: user.id,
-      status: status || "draft",
-      documents: documents || [],
-      notes: notes || null,
+      status: validatedData.status,
+      firstName: validatedData.firstName,
+      lastName: validatedData.lastName,
+      documents: validatedData.documents || [],
+      notes: validatedData.notes || undefined,
       
-      // New form fields
-      employeeType: employeeType || null,
-      requestType: requestType || null,
-      position: position || user.position,
-      department: department || user.department,
-      mainDuties: mainDuties || null,
-      standardDuties: typeof standardDuties === 'object' && standardDuties !== null ? standardDuties : { operations: false, planning: false, coordination: false, service: false },
-      assignedTask: assignedTask || null,
-      monthlyRate,
-      totalAmount,
-      effectiveDate: effectiveDate || null,
-      startDate: startDate || null,
-      endDate: endDate || null,
-      totalDays: totalDays || null,
-      allowanceGroup: allowanceGroup || null,
-      tier: tier || null,
+      // Validated form fields
+      employeeType: validatedData.employeeType,
+      requestType: validatedData.requestType,
+      position: validatedData.position || user.position || '',
+      department: validatedData.department || user.department || '',
+      mainDuties: validatedData.mainDuties,
+      standardDuties: validatedData.standardDuties || { operations: false, planning: false, coordination: false, service: false },
+      assignedTask: validatedData.assignedTask || undefined,
+      monthlyRate: validatedData.monthlyRate || 0,
+      totalAmount: validatedData.totalAmount || 0,
+      effectiveDate: validatedData.effectiveDate || undefined,
+      startDate: validatedData.startDate || undefined,
+      endDate: validatedData.endDate || undefined,
+      totalDays: validatedData.totalDays || undefined,
+      allowanceGroup: validatedData.allowanceGroup,
+      tier: validatedData.tier,
     };
 
-    const requestId = await RequestsDAL.create(newRequest);
-    const createdRequest = await RequestsDAL.findById(requestId) // Fetch the full request
+    const id = await RequestsDAL.create(newRequest);
 
+    // Clear all relevant caches upon new submission
+    cache.invalidateRequestCache();
+
+    // Fetch the created request to return it
+    const createdRequest = await RequestsDAL.findById(id);
     if (!createdRequest) {
-      // This case should ideally not happen if create was successful
-      console.error(`Failed to fetch newly created request with id: ${requestId}`);
-      return NextResponse.json({ error: "Failed to retrieve created request" }, { status: 500 });
-    }
-
-    // Invalidate cache
-    const keys = cache.keys();
-    const requestKeys = keys.filter((key: string) => key.startsWith("requests:"));
-    if (requestKeys.length > 0) {
-      cache.del(requestKeys);
-      console.log(`Cache invalidated for keys: ${requestKeys.join(', ')}`);
+      throw new ApiError(500, "Failed to retrieve created request");
     }
 
     return NextResponse.json({
       success: true,
-      request: createdRequest, // Return the full request object
       message: "Request created successfully",
-    })
+      request: createdRequest,
+    });
+
   } catch (error) {
-    console.error("Create request error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization([], getHandler);
+export const POST = withAuthorization([], postHandler);

@@ -1,14 +1,36 @@
 import { create } from "zustand"
-import { api } from "../utils/storage"
+import { api } from "../utils/api"
 import type { AllowanceRequest, Rate, Comment, Rule, User } from "../models"
 
 // Define interfaces for dashboard data to ensure type safety
 interface DashboardStats {
-  [key: string]: any;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  totalRequests: number;
+  averageProcessingTime: number;
+  totalAmountPending: number;
+  totalAmountApproved: number;
+  // Finance-specific stats
+  totalDisbursements: number;
+  totalPendingAmount: number;
+  averageDisbursementAmount: number;
+  // HR-specific stats
+  pendingRequests: number;
+  approvedRequests: number;
+  rejectedRequests: number;
+  totalAmount?: number;
+  requestsByDepartment: Record<string, number>;
+  requestsByStatus: Record<string, number>;
 }
 
-interface MonthlyData {
-  [key: string]: any;
+interface MonthlyDataPoint {
+  month: string;
+  count: number;
+  amount: number;
+  pending?: number;
+  approved?: number;
+  rejected?: number;
 }
 
 interface RequestWithApprover extends AllowanceRequest {
@@ -18,18 +40,33 @@ interface RequestWithApprover extends AllowanceRequest {
 }
 
 interface DisbursementSummary {
-    [key: string]: any;
+  id: string;
+  requestId?: string; // From finance API
+  firstName: string;
+  lastName: string;
+  employeeName?: string; // From finance API (computed field)
+  nationalId: string;
+  position: string;
+  department: string;
+  allowanceGroup: string;
+  tier: string;
+  amount: number;
+  requestDate: string;
+  approvedDate: string;
+  dueDate?: string; // From finance API (computed field)
+  createdAt?: string; // From finance API
+  status: string;
 }
 
 interface HrDashboardData {
   stats: DashboardStats | null;
-  monthlyData: MonthlyData[];
+  monthlyData: MonthlyDataPoint[];
   requests: RequestWithApprover[];
 }
 
 interface FinanceDashboardData {
   stats: DashboardStats | null;
-  monthlyData: MonthlyData[];
+  monthlyData: MonthlyDataPoint[];
   disbursements: DisbursementSummary[];
 }
 

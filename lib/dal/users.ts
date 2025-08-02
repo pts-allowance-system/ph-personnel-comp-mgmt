@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
-import { eq, and, or, like, concat, not } from 'drizzle-orm';
+import { eq, and, or, like, sql, not } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import type { User } from "../models";
 
@@ -52,7 +52,7 @@ export class UsersDAL {
       const searchPattern = `%${filters.searchTerm}%`;
       conditions.push(
         or(
-          like(concat(users.firstName, ' ', users.lastName), searchPattern),
+          like(sql`concat(${users.firstName}, ' ', ${users.lastName})`, searchPattern),
           like(users.email, searchPattern),
           like(users.nationalId, searchPattern)
         )!

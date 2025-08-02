@@ -1,23 +1,31 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { allowanceRequests, users } from "@/lib/db/schema"
-import { verifyToken } from "@/lib/utils/auth-utils"
-import { format, startOfMonth, endOfMonth } from "date-fns"
-import { eq, inArray, and, gte, lte, sql } from "drizzle-orm"
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { allowanceRequests, users } from "@/lib/db/schema";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { eq, inArray, and, gte, lte, sql } from "drizzle-orm";
+import { handleApiError, ApiError } from "@/lib/utils/error-handler";
+import { z } from "zod";
 
-export async function GET(request: NextRequest) {
+const exportQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, { message: "Month must be in YYYY-MM format" }),
+});
+
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "finance") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { searchParams } = new URL(request.url);
+    const query = {
+      month: searchParams.get("month") || format(new Date(), "yyyy-MM"),
+    };
+
+    const validationResult = exportQuerySchema.safeParse(query);
+    if (!validationResult.success) {
+      throw new ApiError(400, "Invalid 'month' parameter.", validationResult.error.issues);
     }
 
-    const { searchParams } = new URL(request.url)
-    const month = searchParams.get("month") || format(new Date(), "yyyy-MM")
-    const exportFormat = searchParams.get("format") || "csv"
-
-    const startDate = startOfMonth(new Date(month + "-01"))
-    const endDate = endOfMonth(new Date(month + "-01"))
+    const { month } = validationResult.data;
+    const startDate = startOfMonth(new Date(month + "-01"));
+    const endDate = endOfMonth(new Date(month + "-01"));
 
     // Get disbursement data for the month using Drizzle
     const disbursements = await db
@@ -63,7 +71,7 @@ export async function GET(request: NextRequest) {
       "Disbursement Date",
       "Created Date",
       "Updated Date",
-    ]
+    ];
 
     const csvContent = [
       headers.join(","),
@@ -83,21 +91,21 @@ export async function GET(request: NextRequest) {
           req.disbursement_date || "",
           req.created_at,
           req.updated_at,
-        ].join(","),
+        ].join(",")
       ),
-    ].join("\n")
+    ].join("\n");
 
-    const mimeType = exportFormat === "excel" ? "application/vnd.ms-excel" : "text/csv"
-    const fileExtension = exportFormat === "excel" ? "xlsx" : "csv"
-
+    // Note: True Excel (.xlsx) export requires a dedicated library like 'exceljs'.
+    // This endpoint correctly serves a CSV file.
     return new NextResponse(csvContent, {
       headers: {
-        "Content-Type": mimeType,
-        "Content-Disposition": `attachment; filename="disbursement-summary-${month}.${fileExtension}"`,
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="disbursement-summary-${month}.csv"`,
       },
-    })
+    });
   } catch (error) {
-    console.error("Finance export error:", error)
-    return NextResponse.json({ error: "Export failed" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['finance'], getHandler);

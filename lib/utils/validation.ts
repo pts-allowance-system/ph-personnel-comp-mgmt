@@ -2,20 +2,33 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { NextRequestWithAuth } from './authorization'; // Import the augmented request type
 
-// Create a new type that includes both user and parsedBody
-export interface NextRequestWithExtras extends NextRequestWithAuth {
-  parsedBody: any;
+// Create a new type that includes both user and parsedBody using a generic type parameter
+export interface NextRequestWithExtras<T = unknown> extends NextRequestWithAuth {
+  parsedBody: T;
 }
 
-type ValidatedRouteHandler = (request: NextRequestWithExtras, context: any) => Promise<NextResponse>;
+// Define a generic route context type to replace 'any'
+export type RouteContext<T extends Record<string, string> = Record<string, string>> = {
+  params: T;
+  searchParams?: Record<string, string>;
+};
 
-export function withValidation(schema: z.ZodSchema<any>, handler: ValidatedRouteHandler) {
-  return async (request: NextRequestWithAuth, context: any) => { // Expects a request that might already have a user
+// Use generics for the handler type
+type ValidatedRouteHandler<T, C extends Record<string, string>> = (
+  request: NextRequestWithExtras<T>, 
+  context: RouteContext<C>
+) => Promise<NextResponse>;
+
+export function withValidation<T, C extends Record<string, string> = Record<string, string>>(
+  schema: z.ZodSchema<T>, 
+  handler: ValidatedRouteHandler<T, C>
+) {
+  return async (request: NextRequestWithAuth, context: RouteContext<C>) => { // Expects a request that might already have a user
     try {
       const body = await request.json();
       const parsedBody = await schema.parseAsync(body);
 
-      const newRequest = request as NextRequestWithExtras;
+      const newRequest = request as NextRequestWithExtras<T>;
       newRequest.parsedBody = parsedBody;
 
       return handler(newRequest, context);

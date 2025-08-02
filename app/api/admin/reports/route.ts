@@ -1,27 +1,42 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/utils/auth-utils"
-import { ReportsDAL } from "@/lib/dal/reports"
+import { NextResponse } from "next/server";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { ReportsDAL } from "@/lib/dal/reports";
+import { handleApiError } from "@/lib/utils/error-handler";
+import { z } from "zod";
 
-export async function GET(request: NextRequest) {
+const reportQuerySchema = z.object({
+  startDate: z.string().datetime({ message: "Start date must be a valid ISO 8601 date string" }),
+  endDate: z.string().datetime({ message: "End date must be a valid ISO 8601 date string" }),
+});
+
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { searchParams } = new URL(request.url);
+    const query = {
+      startDate: searchParams.get("startDate"),
+      endDate: searchParams.get("endDate"),
+    };
+
+    const validationResult = reportQuerySchema.safeParse(query);
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: "Invalid query parameters", issues: validationResult.error.issues },
+        { status: 400 }
+      );
     }
 
-    const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get("startDate")
-    const endDate = searchParams.get("endDate")
+    const { startDate, endDate } = validationResult.data;
 
-    if (!startDate || !endDate) {
-      return NextResponse.json({ error: "Start date and end date are required" }, { status: 400 })
-    }
+    const reportData = await ReportsDAL.getAllowanceSummary(
+      new Date(startDate),
+      new Date(endDate)
+    );
 
-    const reportData = await ReportsDAL.getAllowanceSummary(new Date(startDate), new Date(endDate))
-
-    return NextResponse.json({ reportData })
+    return NextResponse.json({ reportData });
   } catch (error) {
-    console.error("Get report error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['admin'], getHandler);

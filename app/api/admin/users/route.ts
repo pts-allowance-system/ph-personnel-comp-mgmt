@@ -1,19 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { UsersDAL } from "@/lib/dal/users"
 import { withValidation, NextRequestWithExtras } from "@/lib/utils/validation"
-import { withAuthorization } from "@/lib/utils/authorization"
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization"
 import { createUserSchema } from "@/lib/schemas"
-import { verifyToken } from "@/lib/utils/auth-utils"
 import { handleApiError, ApiError } from "@/lib/utils/error-handler"
 import cache from "@/lib/utils/cache"
+import { User } from "@/lib/models"
+import bcrypt from 'bcryptjs';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      throw new ApiError(401, "Unauthorized");
-    }
-
     const { searchParams } = new URL(request.url)
     const role = searchParams.get("role") || 'all'
     const isActive = searchParams.get("isActive") ?? 'all'
@@ -30,7 +26,6 @@ export async function GET(request: NextRequest) {
     if (isActive !== 'all') filters.isActive = isActive === "true"
     if (searchTerm) filters.searchTerm = searchTerm
 
-
     const users = await UsersDAL.findAll(filters)
 
     cache.set(cacheKey, users);
@@ -43,20 +38,21 @@ export async function GET(request: NextRequest) {
 
 async function postHandler(request: NextRequestWithExtras) {
   try {
-    const userData = request.parsedBody;
+    const userData = request.parsedBody as Omit<User, 'id' | 'isActive'> & { password: string };
+
+    // Hash the password before creating the user
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(userData.password, salt);
 
     const existingUser = await UsersDAL.findByNationalId(userData.nationalId)
     if (existingUser) {
       throw new ApiError(409, "User with this National ID already exists");
     }
 
-    const userId = await UsersDAL.create(userData)
+    const userId = await UsersDAL.create({ ...userData, password: hashedPassword })
 
-    // Invalidate user list caches
-    const userCacheKeys = cache.keys().filter(k => k.startsWith('users:'));
-    if (userCacheKeys.length > 0) {
-      cache.del(userCacheKeys);
-    }
+    // Invalidate user list cache
+    cache.invalidateUserCache();
 
     return NextResponse.json({
       success: true,
@@ -73,4 +69,5 @@ async function postHandler(request: NextRequestWithExtras) {
   }
 }
 
+export const GET = withAuthorization(['admin'], getHandler);
 export const POST = withAuthorization(['admin'], withValidation(createUserSchema, postHandler));

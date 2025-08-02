@@ -59,6 +59,9 @@ export default function FinanceDashboardPage() {
   }
 
   const filteredDisbursements = disbursements.filter((disbursement) => {
+    // Skip disbursements without a dueDate
+    if (!disbursement.dueDate) return false;
+    
     const dueDate = new Date(disbursement.dueDate)
     const selectedDate = new Date(selectedMonth + "-01")
     return dueDate >= startOfMonth(selectedDate) && dueDate <= endOfMonth(selectedDate)
@@ -236,10 +239,9 @@ export default function FinanceDashboardPage() {
             </TableHeader>
             <TableBody>
               {filteredDisbursements.map((disbursement, index) => {
-                const dueDate = new Date(disbursement.dueDate)
-                const isOverdue = dueDate < new Date() && disbursement.status !== "disbursed"
-                const isUrgent =
-                  dueDate <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && disbursement.status !== "disbursed"
+                const dueDate = disbursement.dueDate ? new Date(disbursement.dueDate) : null
+                const isOverdue = dueDate && dueDate < new Date() && disbursement.status !== "disbursed"
+                const isUrgent = dueDate && dueDate <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && disbursement.status !== "disbursed"
 
                 return (
                   <TableRow key={index}>
@@ -250,9 +252,11 @@ export default function FinanceDashboardPage() {
                       <StatusBadge status={disbursement.status} />
                     </TableCell>
                     <TableCell>
-                      <div className={`${isOverdue ? "text-red-600" : isUrgent ? "text-amber-600" : ""}`}>
-                        {format(dueDate, "MMM dd, yyyy")}
-                      </div>
+                      {dueDate && (
+                        <div className={`${isOverdue ? "text-red-600" : isUrgent ? "text-amber-600" : ""}`}>
+                          {format(dueDate, "MMM dd, yyyy")}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       {isOverdue && (
@@ -267,7 +271,8 @@ export default function FinanceDashboardPage() {
                           Urgent
                         </div>
                       )}
-                      {!isOverdue && !isUrgent && <div className="text-green-600">Normal</div>}
+                      {!isOverdue && !isUrgent && dueDate && <div className="text-green-600">Normal</div>}
+                      {!dueDate && <div className="text-gray-500">N/A</div>}
                     </TableCell>
                   </TableRow>
                 )
@@ -329,8 +334,8 @@ export default function FinanceDashboardPage() {
             <div className="text-3xl font-bold text-red-600">
               {
                 filteredDisbursements.filter((d) => {
-                  const dueDate = new Date(d.dueDate)
-                  return dueDate < new Date() && d.status !== "disbursed"
+                  const dueDate = d.dueDate ? new Date(d.dueDate) : null
+                  return dueDate && dueDate < new Date() && d.status !== "disbursed"
                 }).length
               }
             </div>

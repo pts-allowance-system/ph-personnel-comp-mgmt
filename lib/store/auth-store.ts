@@ -70,10 +70,19 @@ export const useAuthStore = create<AuthState>()(
             })
             return null
           }
-        } catch (error: any) { // Catch block for network errors or parsing issues
+        } catch (error: unknown) { // Catch block for network errors or parsing issues
           console.error("Login network/parsing error:", error);
+          
+          // Safe error message extraction with type narrowing
+          let errorMessage = "Network error. Please try again.";
+          if (error instanceof Error) {
+            errorMessage = error.message;
+          } else if (typeof error === 'object' && error !== null && 'message' in error) {
+            errorMessage = String(error.message);
+          }
+          
           set({
-            error: error.message || "Network error. Please try again.",
+            error: errorMessage,
             loading: false,
             user: null,
             token: null,

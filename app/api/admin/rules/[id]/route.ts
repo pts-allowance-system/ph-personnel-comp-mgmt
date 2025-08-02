@@ -1,48 +1,47 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { RulesDAL } from "@/lib/dal/rules"
-import { verifyToken } from "@/lib/utils/auth-utils"
+import { NextResponse } from "next/server";
+import { RulesDAL } from "@/lib/dal/rules";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { withValidation, NextRequestWithExtras, RouteContext } from "@/lib/utils/validation";
+import { handleApiError, ApiError } from "@/lib/utils/error-handler";
+import { z } from "zod";
+import { Rule } from "@/lib/models";
 
-export async function GET(request: NextRequest, { params }: any) {
+const updateRuleSchema = z.object({
+  name: z.string().min(1).optional(),
+  conditions: z.record(z.any()).optional(),
+});
+
+async function getHandler(request: NextRequestWithAuth, { params }: RouteContext<{ id: string }>) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const rule = await RulesDAL.findById(params.id)
+    const rule = await RulesDAL.findById(params.id);
     if (!rule) {
-      return NextResponse.json({ error: "Rule not found" }, { status: 404 })
+      throw new ApiError(404, "Rule not found");
     }
-
-    return NextResponse.json({ rule })
+    return NextResponse.json({ rule });
   } catch (error) {
-    console.error("Get rule error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: any) {
+async function patchHandler(request: NextRequestWithExtras, { params }: RouteContext<{ id: string }>) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const updates = request.parsedBody as Partial<Rule>;
+
+    if (Object.keys(updates).length === 0) {
+      throw new ApiError(400, "No update data provided.");
     }
 
-    const updates = await request.json()
-
-    // Basic validation
-    if (updates.name === '' || (updates.conditions && typeof updates.conditions !== 'object')) {
-        return NextResponse.json({ error: 'Invalid update data provided.' }, { status: 400 });
-    }
-    const success = await RulesDAL.update(params.id, updates)
+    const success = await RulesDAL.update(params.id, updates);
 
     if (!success) {
-      return NextResponse.json({ error: "Failed to update rule" }, { status: 400 })
+      throw new ApiError(404, "Rule not found or failed to update.");
     }
 
-    return NextResponse.json({ success: true, message: "Rule updated successfully" })
+    return NextResponse.json({ success: true, message: "Rule updated successfully" });
   } catch (error) {
-    console.error("Update rule error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['admin'], getHandler);
+export const PATCH = withAuthorization(['admin'], withValidation(updateRuleSchema, patchHandler));

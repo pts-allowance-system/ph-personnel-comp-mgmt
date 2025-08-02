@@ -1,45 +1,34 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { RulesDAL } from "@/lib/dal/rules"
-import { verifyToken } from "@/lib/utils/auth-utils"
+import { NextResponse } from "next/server";
+import { RulesDAL } from "@/lib/dal/rules";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { withValidation, NextRequestWithExtras } from "@/lib/utils/validation";
+import { handleApiError } from "@/lib/utils/error-handler";
+import { z } from "zod";
+import { Rule } from "@/lib/models";
 
-export async function GET(request: NextRequest) {
+const createRuleSchema = z.object({
+  name: z.string().min(1, { message: "Rule name is required." }),
+  conditions: z.record(z.any()), // Allow any valid JSON for conditions
+});
+
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const rules = await RulesDAL.findAll()
-    return NextResponse.json({ rules })
+    const rules = await RulesDAL.findAll();
+    return NextResponse.json({ rules });
   } catch (error) {
-    console.error("Get rules error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequestWithExtras) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const newRule = await RulesDAL.create(request.parsedBody as Omit<Rule, 'id' | 'isActive'>);
 
-    const ruleData = await request.json()
-
-    // Basic validation
-    if (!ruleData.name || typeof ruleData.conditions !== 'object') {
-      return NextResponse.json({ error: 'Rule name and conditions are required.' }, { status: 400 });
-    }
-
-    const ruleId = await RulesDAL.create(ruleData)
-
-    return NextResponse.json({
-      success: true,
-      ruleId,
-      message: "Rule created successfully",
-    })
+    return NextResponse.json(newRule, { status: 201 });
   } catch (error) {
-    console.error("Create rule error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['admin'], getHandler);
+export const POST = withAuthorization(['admin'], withValidation(createRuleSchema, postHandler));

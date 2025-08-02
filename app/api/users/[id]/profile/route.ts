@@ -4,21 +4,34 @@ import { AllowanceCalculationService } from "@/lib/services/allowance-calculatio
 import { UsersDAL } from "@/lib/dal/users";
 import cache from "@/lib/utils/cache";
 import { User } from "@/lib/models";
+import { handleApiError } from "@/lib/utils/error-handler";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+/**
+ * Defines the shape of the context object passed to the route handlers.
+ * Ensures that the `params` object is correctly typed as a Promise.
+ */
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
-  // By correctly typing params, Next.js ensures it's populated.
-  // The await request.text() is a workaround that is no longer needed with proper typing.
-
   if (!id) {
     return NextResponse.json({ error: "User ID is required" }, { status: 400 });
   }
 
-  const cacheKey = `profile:${id}`;
   try {
+    const requestingUser = await verifyToken(request);
+    if (!requestingUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Authorization check: User can only get their own profile, unless they are an admin/hr.
+    if (requestingUser.id !== id && !['admin', 'hr'].includes(requestingUser.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const cacheKey = `profile:${id}`;
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
       console.log(`[Cache] HIT for user ${id}`);
@@ -42,27 +55,20 @@ export async function GET(
 
     cache.set(cacheKey, profileData);
     return NextResponse.json(profileData);
-  } catch (error: any) {
-    console.error(`[API] Error fetching profile for user ${id}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return handleApiError(error);
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   try {
     // Await the body first to ensure params are populated
     const body = await request.json();
 
-    const user = await verifyToken(request);
-    if (!user || user.id !== id) {
-      // Security check: ensure users can only update their own profile
+    const requestingUser = await verifyToken(request);
+    // Security check: ensure users can only update their own profile
+    if (!requestingUser || requestingUser.id !== id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -72,7 +78,7 @@ export async function PATCH(
 
     for (const field of updatableFields) {
       if (body[field] !== undefined) {
-        (allowedUpdates as any)[field] = body[field];
+        allowedUpdates[field as keyof User] = body[field];
       }
     }
 
@@ -91,10 +97,6 @@ export async function PATCH(
     }
 
   } catch (error) {
-    console.error(`Error updating user profile for id=${id}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

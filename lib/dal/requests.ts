@@ -2,49 +2,20 @@ import { db } from "@/lib/db";
 import { allowanceRequests, users, requestDocuments, requestComments } from "@/lib/db/schema";
 import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
-import type { AllowanceRequest, FileUpload, Comment, User } from "../models";
+import type { AllowanceRequest, FileUpload, Comment, UserProfile as User } from "../models";
+import { InferSelectModel } from "drizzle-orm";
 
-// This function is now only used for single-record fetches to avoid N+1 in lists.
-const mapRowToRequestWithRelations = async (row: any): Promise<AllowanceRequest> => {
-  const documents = await RequestsDAL.getRequestDocuments(row.id);
-  const comments = await RequestsDAL.getRequestComments(row.id);
+// Define proper types using Drizzle ORM inference
+type AllowanceRequestRow = InferSelectModel<typeof allowanceRequests>;
+type UserRow = InferSelectModel<typeof users>;
 
-  return {
-    id: row.id,
-    employeeId: row.employeeId,
-    employeeName: row.employeeName,
-    status: row.status,
-    employeeType: row.employeeType,
-    requestType: row.requestType,
-    position: row.position,
-    department: row.department,
-    mainDuties: row.mainDuties,
-    standardDuties:
-      row.standardDuties
-        ? typeof row.standardDuties === 'string'
-          ? JSON.parse(row.standardDuties)
-          : row.standardDuties
-        : { operations: false, planning: false, coordination: false, service: false },
-    assignedTask: row.assignedTask,
-    monthlyRate: row.monthlyRate ? Number(row.monthlyRate) : 0,
-    totalAmount: row.totalAmount ? Number(row.totalAmount) : 0,
-    effectiveDate: row.effectiveDate,
-    startDate: row.startDate,
-    endDate: row.endDate,
-    totalDays: row.totalDays,
-    allowanceGroup: row.allowanceGroup,
-    tier: row.tier,
-    notes: row.notes,
-    documents,
-    comments,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    approvedAt: row.approvedAt,
-    approvedBy: row.approvedBy,
-    approverName: row.approverName,
-  };
-};
+// Extend the row type for joined queries that include user data
+interface AllowanceRequestWithUserRow extends AllowanceRequestRow {
+  employeeName?: string;
+  approverName?: string;
+}
 
+// New helper method to efficiently map relations for lists
 export class RequestsDAL {
   private static getFullSelectQuery() {
     const approver = alias(users, "approver");
@@ -53,6 +24,8 @@ export class RequestsDAL {
         id: allowanceRequests.id,
         employeeId: allowanceRequests.employeeId,
         status: allowanceRequests.status,
+        createdAt: allowanceRequests.createdAt,
+        updatedAt: allowanceRequests.updatedAt,
         employeeType: allowanceRequests.employeeType,
         requestType: allowanceRequests.requestType,
         position: allowanceRequests.position,
@@ -69,8 +42,10 @@ export class RequestsDAL {
         allowanceGroup: allowanceRequests.allowanceGroup,
         tier: allowanceRequests.tier,
         notes: allowanceRequests.notes,
-        createdAt: allowanceRequests.createdAt,
-        updatedAt: allowanceRequests.updatedAt,
+        hrOverride: allowanceRequests.hrOverride,
+        ruleCheckResults: allowanceRequests.ruleCheckResults,
+        disbursementDate: allowanceRequests.disbursementDate,
+        referenceNumber: allowanceRequests.referenceNumber,
         approvedAt: allowanceRequests.approvedAt,
         approvedBy: allowanceRequests.approvedBy,
         employeeName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
@@ -81,8 +56,7 @@ export class RequestsDAL {
       .leftJoin(approver, eq(allowanceRequests.approvedBy, approver.id));
   }
 
-  // New helper method to efficiently map relations for lists
-  private static async _mapRequestsWithRelations(rows: any[]): Promise<AllowanceRequest[]> {
+  private static async _mapRequestsWithRelations(rows: AllowanceRequestWithUserRow[]): Promise<AllowanceRequest[]> {
     if (rows.length === 0) return [];
 
     const requestIds = rows.map(r => r.id);
@@ -107,12 +81,12 @@ export class RequestsDAL {
     const documentsMap = allDocuments.reduce((acc, doc) => {
       if (!acc[doc.requestId]) acc[doc.requestId] = [];
       acc[doc.requestId].push({
-          id: doc.id,
-          name: doc.fileName,
-          url: doc.fileUrl,
-          path: doc.filePath,
-          size: doc.fileSize,
-          type: doc.fileType,
+        id: doc.id,
+        name: doc.fileName,
+        url: doc.fileUrl,
+        path: doc.filePath,
+        size: doc.fileSize,
+        type: doc.fileType,
       });
       return acc;
     }, {} as Record<string, FileUpload[]>);
@@ -120,31 +94,50 @@ export class RequestsDAL {
     const commentsMap = allCommentsData.reduce((acc, comment) => {
       if (!acc[comment.requestId]) acc[comment.requestId] = [];
       acc[comment.requestId].push({
-          id: comment.id,
-          requestId: comment.requestId,
-          user: { id: comment.userId, name: comment.authorName || 'Unknown' },
-          content: comment.message,
-          timestamp: comment.createdAt?.toISOString() || '',
+        id: comment.id,
+        requestId: comment.requestId,
+        user: { id: comment.userId, name: comment.authorName || 'Unknown' },
+        content: comment.message,
+        timestamp: comment.createdAt?.toISOString() || '',
       });
       return acc;
     }, {} as Record<string, Comment[]>);
 
-    // Map the final request objects
-    return rows.map(row => ({
+    // Map the rows to the final AllowanceRequest structure
+    return rows.map((row) => ({
       ...row,
+      // Ensure all nullable fields are converted to their correct types
+      employeeType: row.employeeType || '', // required string
+      requestType: row.requestType || '', // required string
+      position: row.position || undefined, // optional string
+      department: row.department || undefined, // optional string
+      assignedTask: row.assignedTask || undefined, // optional string
+      allowanceGroup: row.allowanceGroup || undefined, // optional string
+      tier: row.tier || undefined, // optional string
+      notes: row.notes || undefined, // optional string
+      approvedBy: row.approvedBy || undefined, // optional string
+
+      // Handle status and other transformations
+      status: row.status || 'DRAFT', // required string
       documents: documentsMap[row.id] || [],
       comments: commentsMap[row.id] || [],
-      standardDuties: row.standardDuties ? JSON.parse(row.standardDuties) : {},
-      monthlyRate: Number(row.monthlyRate),
-      totalAmount: Number(row.totalAmount),
+      standardDuties: typeof row.standardDuties === 'string' ? JSON.parse(row.standardDuties) : row.standardDuties || {},
+      monthlyRate: row.monthlyRate ? parseFloat(row.monthlyRate) : 0,
+      totalAmount: row.totalAmount ? parseFloat(row.totalAmount) : 0,
+      effectiveDate: row.effectiveDate ? new Date(row.effectiveDate).toISOString() : new Date().toISOString(),
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : undefined,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined,
+      approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : undefined,
+      startDate: row.startDate ? new Date(row.startDate).toISOString() : undefined,
+      endDate: row.endDate ? new Date(row.endDate).toISOString() : undefined,
     }));
   }
 
   static async findById(id: string): Promise<AllowanceRequest | null> {
     const rows = await this.getFullSelectQuery().where(eq(allowanceRequests.id, id));
     if (rows.length === 0) return null;
-    // For a single record, the original method is fine.
-    return mapRowToRequestWithRelations(rows[0]);
+    const results = await this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
+    return results[0];
   }
 
   static async findByUserId(userId: string, fetchAll?: boolean): Promise<AllowanceRequest[]> {
@@ -154,14 +147,14 @@ export class RequestsDAL {
     }
     const query = this.getFullSelectQuery().where(and(...conditions));
     const rows = await query.orderBy(desc(allowanceRequests.createdAt));
-    return this._mapRequestsWithRelations(rows);
+    return this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
   }
 
   static async findByStatus(status: string): Promise<AllowanceRequest[]> {
     const rows = await this.getFullSelectQuery()
       .where(eq(allowanceRequests.status, status))
       .orderBy(desc(allowanceRequests.createdAt));
-    return this._mapRequestsWithRelations(rows);
+    return this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
   }
 
   static async create(
@@ -291,11 +284,18 @@ export class RequestsDAL {
     const rows = await this.getFullSelectQuery()
       .where(eq(users.department, department))
       .orderBy(desc(allowanceRequests.createdAt));
-    return this._mapRequestsWithRelations(rows);
+    return this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
+  }
+
+  static async findPendingHrReview(): Promise<AllowanceRequest[]> {
+    const rows = await this.getFullSelectQuery()
+      .where(eq(allowanceRequests.status, "approved"))
+      .orderBy(desc(allowanceRequests.createdAt));
+    return this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
   }
 
   static async findAllWithDetails(): Promise<AllowanceRequest[]> {
     const rows = await this.getFullSelectQuery().orderBy(desc(allowanceRequests.createdAt));
-    return this._mapRequestsWithRelations(rows);
+    return this._mapRequestsWithRelations(rows as AllowanceRequestWithUserRow[]);
   }
 }

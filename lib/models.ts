@@ -1,5 +1,16 @@
 export type UserRole = "employee" | "supervisor" | "hr" | "finance" | "admin";
 
+export type RequestStatus = 
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "hr-checked"
+  | "disbursed"
+  | "rejected"
+  | "rejected_by_finance"
+  | "approved_by_hr"
+  | "processed";
+
 export interface User {
   id: string;
   nationalId: string;

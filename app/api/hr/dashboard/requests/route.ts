@@ -1,20 +1,17 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { RequestsDAL } from "@/lib/dal/requests"
-import { verifyToken } from "@/lib/utils/auth-utils"
+import { NextResponse } from "next/server";
+import { RequestsDAL } from "@/lib/dal/requests";
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization";
+import { handleApiError } from "@/lib/utils/error-handler";
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequestWithAuth) {
   try {
-    const user = await verifyToken(request)
-    if (!user || user.role !== "hr") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     // Get all requests with additional details
-    const requests = await RequestsDAL.findAllWithDetails()
+    const requests = await RequestsDAL.findPendingHrReview();
 
-    return NextResponse.json({ requests })
+    return NextResponse.json({ requests });
   } catch (error) {
-    console.error("HR dashboard requests error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error);
   }
 }
+
+export const GET = withAuthorization(['hr', 'admin'], getHandler);

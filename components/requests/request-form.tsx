@@ -82,7 +82,17 @@ export function RequestForm({
     },
   });
 
-  const { setValue } = form;
+  const { setValue, watch } = form;
+  const selectedGroup = watch("allowanceGroup");
+
+  useEffect(() => {
+    if (selectedGroup) {
+      const rate = allowanceRates.find(r => r.allowanceGroup === selectedGroup);
+      if (rate) {
+        setValue("monthlyRate", rate.monthlyRate);
+      }
+    }
+  }, [selectedGroup, allowanceRates, setValue]);
 
   const handleCancelEdit = () => {
     // Revert only the profile fields to their initial state
@@ -111,22 +121,6 @@ export function RequestForm({
     await onUpdateProfile(profileData);
     setIsEditingInfo(false);
   };
-
-  const selectedGroup = form.watch("allowanceGroup");
-  const selectedTier = form.watch("tier");
-
-    const updateAllowanceRate = useCallback(() => {
-    if (selectedGroup && selectedTier) {
-      const rate = allowanceRates.find(r => r.allowanceGroup === selectedGroup && r.tier === selectedTier);
-      if (rate) {
-        form.setValue("monthlyRate", rate.monthlyRate);
-      }
-    }
-  }, [selectedGroup, selectedTier, allowanceRates, form]);
-
-  useEffect(() => {
-    updateAllowanceRate();
-  }, [updateAllowanceRate]);
 
   const handleSaveDraft = (data: FormValues) => {
     onSubmit(data, true);
@@ -186,8 +180,8 @@ export function RequestForm({
           <h3 className="text-xl font-serif font-semibold">๒. ข้อมูลการขอรับเงิน พ.ต.ส.</h3>
           <Separator />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField control={form.control} name="employeeType" render={({ field }) => <FormItem><FormLabel>ประเภทบุคลากร <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="doctor">แพทย์</SelectItem><SelectItem value="other">อื่นๆ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="requestType" render={({ field }) => <FormItem><FormLabel>ประเภท พ.ต.ส. <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger></FormControl><SelectContent><SelectItem value="specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานที่มีความชำนาญ</SelectItem><SelectItem value="non_specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานในพื้นที่พิเศษ</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="employeeType" render={({ field }) => <FormItem><FormLabel>ประเภทบุคลากร <span className="text-red-500">*</span></FormLabel><FormControl><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger><SelectContent><SelectItem value="doctor">แพทย์</SelectItem><SelectItem value="other">อื่นๆ</SelectItem></SelectContent></Select></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="requestType" render={({ field }) => <FormItem><FormLabel>ประเภท พ.ต.ส. <span className="text-red-500">*</span></FormLabel><FormControl><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger><SelectContent><SelectItem value="specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานที่มีความชำนาญ</SelectItem><SelectItem value="non_specialized">พ.ต.ส. สำหรับผู้ปฏิบัติงานในพื้นที่พิเศษ</SelectItem></SelectContent></Select></FormControl><FormMessage /></FormItem>} />
           </div>
           <FormField control={form.control} name="mainDuties" render={({ field }) => <FormItem><FormLabel>ภาระงานหลักโดยย่อ <span className="text-red-500">*</span></FormLabel><FormControl><Input placeholder="ระบุภาระงานหลัก" {...field} /></FormControl><FormMessage /></FormItem>} />
           <FormItem>
@@ -217,16 +211,12 @@ export function RequestForm({
             <FormMessage />
           </FormItem>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <FormField control={form.control} name="allowanceGroup" render={({ field }) => <FormItem><FormLabel>กลุ่ม <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.map(r => r.allowanceGroup))].map((group, index) => (
-              <SelectItem key={`${group}-${index}`} value={group}>{group}</SelectItem>
-            ))}</SelectContent></Select><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="tier" render={({ field }) => <FormItem><FormLabel>ระดับ <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.filter(r => r.allowanceGroup === selectedGroup).map(r => r.tier))].map((tier, index) => (
-              <SelectItem key={`${tier}-${index}`} value={tier}>{tier}</SelectItem>
-            ))}</SelectContent></Select><FormMessage /></FormItem>} />
-            <FormField control={form.control} name="monthlyRate" render={({ field }) => <FormItem><FormLabel>ในอัตราเดือนละ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="number" {...field} readOnly className="bg-gray-100" /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="allowanceGroup" render={({ field }) => <FormItem><FormLabel>กลุ่ม <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.map(r => r.allowanceGroup))].map(group => (<SelectItem key={group} value={group}>{group}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="tier" render={({ field }) => <FormItem><FormLabel>ระดับ <span className="text-red-500">*</span></FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedGroup}><FormControl><SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger></FormControl><SelectContent>{[...new Set(allowanceRates.filter(r => r.allowanceGroup === selectedGroup).map(r => r.tier))].map(tier => (<SelectItem key={tier} value={tier}>{tier}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>} />
+            <FormField control={form.control} name="monthlyRate" render={({ field }) => <FormItem><FormLabel>ในอัตราเดือนละ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="number" readOnly {...field} value={field.value || ''} className="bg-gray-100" /></FormControl><FormMessage /></FormItem>} />
           </div>
-          <FormField control={form.control} name="effectiveDate" render={({ field }) => <FormItem><FormLabel>ขอเบิกตั้งแต่วันที่ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>} />
-          <FormField control={form.control} name="certificate" render={({ field }) => <FormItem><FormLabel>วุฒิบัตร สาขา</FormLabel><FormControl><Input placeholder="ระบุสาขา (ถ้ามี)" {...field} /></FormControl><FormMessage /></FormItem>} />
+          <FormField control={form.control} name="effectiveDate" render={({ field }) => <FormItem><FormLabel>ขอเบิกตั้งแต่วันที่ <span className="text-red-500">*</span></FormLabel><FormControl><Input type="date" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} />
+          <FormField control={form.control} name="certificate" render={({ field }) => <FormItem><FormLabel>วุฒิบัตร สาขา</FormLabel><FormControl><Input placeholder="ระบุสาขา (ถ้ามี)" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>} />
         </div>
 
         {/* File Attachment Section */}

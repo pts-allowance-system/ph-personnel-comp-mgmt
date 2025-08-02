@@ -1,20 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { RequestsDAL } from "@/lib/dal/requests"
-import { withValidation, NextRequestWithExtras } from "@/lib/utils/validation"
-import { withAuthorization, AuthenticatedRequest } from "@/lib/utils/authorization"
+import { withValidation, NextRequestWithExtras, RouteContext } from "@/lib/utils/validation"
+import { withAuthorization, NextRequestWithAuth } from "@/lib/utils/authorization"
 import { updateRequestSchema } from "@/lib/schemas"
 import { handleApiError, ApiError } from "@/lib/utils/error-handler"
-import { canTransition, canViewRequest, RequestStatus } from "@/lib/authz" // Updated import
+import { canTransition, canViewRequest, RequestStatus } from "@/lib/authz" 
 import cache from "@/lib/utils/cache"
-
-type RouteContext = {
-  params: {
-    id: string
-  }
-}
+import { withPerformanceMonitoring } from "@/lib/middleware/performance-middleware"
 
 // Refactored GET handler using the centralized authorization module
-async function getHandler(request: AuthenticatedRequest, { params }: RouteContext) {
+async function getHandler(request: NextRequestWithAuth, { params }: RouteContext<{ id: string }>) {
   try {
     const user = request.user;
     const requestData = await RequestsDAL.findById(params.id);
@@ -35,7 +30,7 @@ async function getHandler(request: AuthenticatedRequest, { params }: RouteContex
 }
 
 // Refactored PATCH handler with workflow authorization
-async function patchHandler(request: NextRequestWithExtras & AuthenticatedRequest, { params }: RouteContext) {
+async function patchHandler(request: NextRequestWithExtras & NextRequestWithAuth, { params }: RouteContext<{ id: string }>) {
   try {
     const { id } = params;
     const updates = request.parsedBody;
@@ -58,8 +53,9 @@ async function patchHandler(request: NextRequestWithExtras & AuthenticatedReques
       if (currentRequest.employeeId !== user.id) {
         throw new ApiError(403, "You can only update your own requests.");
       }
-      if (currentRequest.status !== 'draft' && isStatusUpdate) {
-        throw new ApiError(403, "You can only submit requests that are in draft status.");
+      // Employees can only modify requests that are in draft status.
+      if (currentRequest.status !== 'draft') {
+        throw new ApiError(403, "You can only modify requests that are in draft status.");
       }
     }
 
@@ -79,11 +75,8 @@ async function patchHandler(request: NextRequestWithExtras & AuthenticatedReques
       throw new ApiError(400, "Failed to update request");
     }
 
-    cache.del(`request:${id}`);
-    const listCacheKeys = cache.keys().filter(k => k.startsWith('requests:'));
-    if (listCacheKeys.length > 0) {
-      cache.del(listCacheKeys);
-    }
+    // Use the centralized cache invalidation method
+    cache.invalidateRequestCache(id);
 
     const updatedRequest = await RequestsDAL.findById(id);
 
@@ -94,12 +87,12 @@ async function patchHandler(request: NextRequestWithExtras & AuthenticatedReques
   }
 }
 
-export const GET = withAuthorization(
+export const GET = withPerformanceMonitoring(withAuthorization(
   ['admin', 'finance', 'hr', 'supervisor', 'employee'],
   getHandler
-);
+));
 
-export const PATCH = withAuthorization(
+export const PATCH = withPerformanceMonitoring(withAuthorization(
   ['admin', 'finance', 'hr', 'supervisor', 'employee'],
   withValidation(updateRequestSchema, patchHandler)
-);
+));

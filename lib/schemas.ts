@@ -40,3 +40,14 @@ export const updateUserSchema = z.object({
   position: z.string().optional(),
   isActive: z.boolean().optional(),
 });
+
+// Enum for request statuses to be used in schemas
+export const RequestStatusEnum = z.enum([
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'hr-checked',
+  'disbursed',
+  'cancelled',
+]);
